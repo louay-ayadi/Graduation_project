@@ -9,6 +9,11 @@
 #include "/home/louay/Downloads/File-Vector-master/file_vector.hpp"
 using namespace std;
 
+template<size_t s>
+struct subchunk{
+char chunk[s];
+};
+
 template<typename T,int C,size_t subchunk_size>
 class CompDec{
     
@@ -27,13 +32,12 @@ class CompDec{
     int					 page_size=subchunk_size;
     ZoneMapSet<T>		 zonemaps;
     
-    public:
+        public:
     
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
-    	
-        size=ssize;
+    	size=ssize;
         if(ssize%_chunksize==0)
             	{Num_chunks=ssize/_chunksize;}
         else if (ssize%_chunksize!=0)
@@ -199,7 +203,7 @@ class CompDec{
             }
             else{
             	begin=(Num_chunks-1)*num_pages;
-                end=total_pages-begin;
+                end=total_pages;
             }
             //to here
             char *regen_buffer1=new  char[chunks_sizes[i]*sizeof(int)];
@@ -538,7 +542,7 @@ int main()
  	//Fill the array
 	for(size_t i=0;i<n;i++)
     {
-		array[i]=rand()%100;
+		array[i]=i;
     }
     CompDec<int,200000,4096>A(array,n);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
@@ -615,7 +619,7 @@ int main()
     	 new_char=A.join_first();
     	 LZ4_decompress_safe(new_char,regen_buffer, A.Get_compressed_size(0), 200000*sizeof(int));
 		 cout<<"\n"<<*((int*)regen_buffer+199999)<<endl;*/
-		 cout<<"last part of first chunk= "<<array[299999]<<endl;
+		 cout<<"last part of first chunk= "<<array[5]<<endl;
 		 //A.gt_dec();
 		 /*
 		 char *regen_buffer1=new  char[300000*sizeof(int)];
