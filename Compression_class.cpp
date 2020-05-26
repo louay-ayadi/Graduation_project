@@ -12,7 +12,7 @@ using namespace std;
 template<typename T,int C>
 class CompDec{
     
-    int 			 	 Num_chunks;//Number of chunks
+    int 			 	 Num_chunks;//Number of chunks from the big vector
     int 				 total_pages;//number of pages
     size_t 			 	 size;//Size of input array
     int		 		 	 _chunksize=C;//Number of elements in each chunk
