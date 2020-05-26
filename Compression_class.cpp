@@ -9,7 +9,7 @@
 #include "/home/louay/Downloads/File-Vector-master/file_vector.hpp"
 using namespace std;
 
-template<typename T,int C>
+template<typename T,int C,size_t subchunk_size>
 class CompDec{
     
     int 			 	 Num_chunks;//Number of chunks from the big vector
@@ -24,15 +24,15 @@ class CompDec{
     vector<int>			 Decompressed_chunks_sizes;//Vector of Decompressed chunks' sizes
     vector<const char*>	 Splitted_Compressed_chunks;//Vector of Splitted compressed chunks
     vector<size_t>	 	 Splitted_Compressed_chunks_sizes;
-    int					 page_size;
+    int					 page_size=subchunk_size;
     ZoneMapSet<T>		 zonemaps;
     
     public:
     
     //Constructor
-    CompDec(T* ch, size_t ssize,int pg_sz)
+    CompDec(T* ch, size_t ssize)
     {  
-    	page_size=pg_sz;
+    	
         size=ssize;
         if(ssize%_chunksize==0)
             	{Num_chunks=ssize/_chunksize;}
@@ -540,7 +540,7 @@ int main()
     {
 		array[i]=rand()%100;
     }
-    CompDec<int,200000>A(array,n,4096);
+    CompDec<int,200000,4096>A(array,n);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
     //A.Compress_chunks();//Compress the chunks
     int num;
