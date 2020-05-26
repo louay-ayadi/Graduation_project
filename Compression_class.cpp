@@ -45,10 +45,14 @@ class CompDec{
         zonemaps.InitFromData(ch, ssize);
         Compress_chunks();
         Decompress_chunks();
+        Split_compressed(total_pages);
           
 
     }
-    
+    int Get_total_pages_number()
+    {
+    return total_pages;
+    }
     int Get_num_chunks()
     {return Num_chunks;}
     
@@ -540,11 +544,12 @@ int main()
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
     //A.Compress_chunks();//Compress the chunks
     int num;
-	vector<size_t>splitted_sizes=A.Split_compressed(num);
+	//vector<size_t>splitted_sizes=A.Split_compressed(num);
+
 	vector<size_t>splitted=A.Get_sizes();
 	/*cout<<"splitted = "<<splitted[8]<<endl;
     cout<<"here = "<<splitted_sizes[39]<<endl;*/
-	cout<<"number of compressed pages= "<<num<<endl;
+	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
     //A.Decompress_chunks();//Decompress the chunks
     int key;cout<<"Enter key to find ";
     cin>>key;
@@ -565,7 +570,7 @@ int main()
     
     size_t si;int a,b;
     start = std::chrono::high_resolution_clock::now();
-    cout<<"With split "<<A.Find_after(key,true,si,num,a,b)<<endl;
+    cout<<"With split "<<A.Find_after(key,true,si,A.Get_total_pages_number(),a,b)<<endl;
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
