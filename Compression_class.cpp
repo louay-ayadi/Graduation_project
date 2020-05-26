@@ -43,6 +43,8 @@ class CompDec{
         ZoneMapSet<T>zonemapss(C*sizeof(T),ssize);
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
+        Compress_chunks();
+        Decompress_chunks();
           
 
     }
@@ -536,14 +538,14 @@ int main()
     }
     CompDec<int,200000>A(array,n,4096);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
-    A.Compress_chunks();//Compress the chunks
+    //A.Compress_chunks();//Compress the chunks
     int num;
 	vector<size_t>splitted_sizes=A.Split_compressed(num);
 	vector<size_t>splitted=A.Get_sizes();
 	/*cout<<"splitted = "<<splitted[8]<<endl;
     cout<<"here = "<<splitted_sizes[39]<<endl;*/
 	cout<<"number of compressed pages= "<<num<<endl;
-    A.Decompress_chunks();//Decompress the chunks
+    //A.Decompress_chunks();//Decompress the chunks
     int key;cout<<"Enter key to find ";
     cin>>key;
     
