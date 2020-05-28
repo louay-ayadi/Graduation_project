@@ -31,6 +31,10 @@ class CompDec{
     vector<size_t>	 	 Splitted_Compressed_chunks_sizes;
     int					 page_size=subchunk_size;
     ZoneMapSet<T>		 zonemaps;
+    vector<subchunk<subchunk_size>> vec;
+    //file_vector<char[subchunk_size]> vec2("test1");
+    //file_vector<subchunk<subchunk_size>> vec2;
+
     
         public:
     
@@ -314,6 +318,7 @@ class CompDec{
 	//Function to split the compressed chunks into little chunks
 	vector<size_t>Split_compressed(int &num)
 	{
+		file_vector<subchunk<subchunk_size>>fv("testing",file_vector<int>::create_file);
 		num=0;
 		for(int i=0;i<Num_chunks;i++)
 		{
@@ -325,6 +330,11 @@ class CompDec{
 		 for (auto j = compressed.begin(); j != compressed.end(); ++j) 
          	{Splitted_Compressed_chunks.emplace_back(*j);
 		  	 num+=1;
+		  	 subchunk<subchunk_size> s;
+		  	 memcpy(s.chunk,*j,subchunk_size);
+			 //s.chunk = *j;
+			 vec.push_back(s);
+			 fv.emplace_back(s);
 			}
 			for (auto j = sizes.begin(); j != sizes.end(); ++j) 
          	{Splitted_Compressed_chunks_sizes.emplace_back(*j);
