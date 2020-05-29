@@ -32,7 +32,8 @@ class CompDec{
     int					 page_size=subchunk_size;
     ZoneMapSet<T>		 zonemaps;
     vector<subchunk<subchunk_size>> vec;
-    //file_vector<char[subchunk_size]> vec2("test1");
+    std::shared_ptr<file_vector<subchunk<subchunk_size>>> vec2;
+    
     //file_vector<subchunk<subchunk_size>> vec2;
 
     
@@ -41,6 +42,7 @@ class CompDec{
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
+    	this->vec2=std::make_shared<file_vector<subchunk<subchunk_size>>>("splitted",true);
     	size=ssize;
         if(ssize%_chunksize==0)
             	{Num_chunks=ssize/_chunksize;}
@@ -54,7 +56,7 @@ class CompDec{
         Compress_chunks();
         Decompress_chunks();
         Split_compressed(total_pages);
-          
+  
 
     }
     int Get_total_pages_number()
@@ -318,7 +320,6 @@ class CompDec{
 	//Function to split the compressed chunks into little chunks
 	vector<size_t>Split_compressed(int &num)
 	{
-		file_vector<subchunk<subchunk_size>>fv("testing",file_vector<int>::create_file);
 		num=0;
 		for(int i=0;i<Num_chunks;i++)
 		{
@@ -333,8 +334,9 @@ class CompDec{
 		  	 subchunk<subchunk_size> s;
 		  	 memcpy(s.chunk,*j,subchunk_size);
 			 //s.chunk = *j;
-			 vec.push_back(s);
-			 fv.emplace_back(s);
+			 //cout<<"vec2 "<<vec2<<endl;
+			 vec2->push_back(s);
+			 //fv.emplace_back(s);
 			}
 			for (auto j = sizes.begin(); j != sizes.end(); ++j) 
          	{Splitted_Compressed_chunks_sizes.emplace_back(*j);
