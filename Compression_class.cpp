@@ -57,6 +57,7 @@ class CompDec{
         ZoneMapSet<T>zonemapss(C*sizeof(T),ssize);
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
+        //cout<<"Number of zonemaps"<<zonemaps.Size()<<endl;
         Compress_chunks();
         //Decompress_chunks();
         Split_compressed(total_pages);
@@ -241,21 +242,15 @@ class CompDec{
     //Destructor
     ~CompDec()
     {           
-        chunks.clear();
-        Compressed_chunks.clear();
-        DeCompressed_chunks.clear();
-        compressed_chunks_sizes.clear();
-        Decompressed_chunks_sizes.clear();
-        Splitted_Compressed_chunks_sizes.clear();
-        
-    chunks_sizes.clear();//size of each chunk
-  
-    
-   
-    
-   	 Splitted_Compressed_chunks.clear();//Vector of Splitted compressed chunks
-    
-    }
+     chunks.clear();
+     Compressed_chunks.clear();
+     DeCompressed_chunks.clear();
+     compressed_chunks_sizes.clear();
+     Decompressed_chunks_sizes.clear();
+     Splitted_Compressed_chunks_sizes.clear(); 
+     chunks_sizes.clear();
+     Splitted_Compressed_chunks.clear();
+     }
     
     //Function to Split the Array to little chunks depending on given _chunksize
     vector<T*>Split_Array(const T* Tab,size_t n, int _chunksize)
@@ -551,18 +546,20 @@ class CompDec{
     }
 };
 
-
-
+	ZoneMapSet<int>createzonemaps(int *array,size_t sizeofzone){
+	
+	}
+	
 
 
 int main()
 {
-    unsigned int n=50000000,_chunksize,page_size;
+    unsigned int n=1000000,_chunksize,page_size;
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
     {
-		array[i]=i;
+		array[i]=rand()%1000000;
     }
     CompDec<int,200000,4096>A(array,n);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
@@ -575,32 +572,41 @@ int main()
     cout<<"here = "<<splitted_sizes[39]<<endl;*/
 	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
 	
-	vector<int> queries = vector<int>({0, 31, 500, 6775380,0, 31, 500, 677538,0, 31, 500, 9677538,0, 31, 500, 49999999,0, 31, 500, 677538});
-    //A.Decompress_chunks();//Decompress the chunks
-    //int key;cout<<"Enter key to find ";
-    //cin>>key;
+	vector<int> queries = vector<int>({0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538});
     
-    //cout<<"last term in array "<<array[0]<<endl;
-    //cout<<"last Decompressed "<<A.Get_DeCompressed_Chunks()[1][0]<<endl;
     //A.Verify_operation();//Verify compression/decompression operations
-    //Find with Full scan
-    auto start = std::chrono::high_resolution_clock::now();
+    /*************Find with Full scan of the vector***************/
+    auto start = std::chrono::high_resolution_clock::now(); 
+    int found = 0;
+    for(auto &query : queries) {
+        for(int i=0;i<n;i++) {
+            if(array[i] == query) {
+                found++;
+                break;
+            }
+        }
+    }
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[Full scan of the vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
+    /*************Find with Full scan from the class***************/
+    start = std::chrono::high_resolution_clock::now();
     A.Decompress_chunks();
     for(auto &query : queries)
     {
     cout<<"offset of "<<query<<" = "<<A.Find(query)<<endl;
     }
-    auto stop = std::chrono::high_resolution_clock::now(); 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN Decompressed chunks]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
-    //Find with zonemaps
+    /*************Find with zonemaps and decompress concerned chunk***************/
     int loc;
     //cout<<"offset with scan= ";A.Finds(key,true,loc);cout<<loc<<endl;
     start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
     {
     size_t si;int a,b;
-    cout<<"With split "<<A.Find_after(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
+    cout<<"With split "<<query<<"= "<<A.Find_after(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
     //cout<<"begin= "<<a<<" end= "<<b<<endl;
     //cout<<"size "<<si<<endl;
     }
