@@ -13,7 +13,10 @@ template<size_t s>
 struct subchunk{
 char chunk[s];
 };
-
+template<size_t t>
+struct sub{
+char *chunk=new char[t];
+};
 template<typename T,int C,size_t subchunk_size>
 class CompDec{
     
@@ -31,18 +34,19 @@ class CompDec{
     vector<size_t>	 	 Splitted_Compressed_chunks_sizes;
     int					 page_size=subchunk_size;
     ZoneMapSet<T>		 zonemaps;
-    vector<subchunk<subchunk_size>> vec;
-    std::shared_ptr<file_vector<subchunk<subchunk_size>>> vec2;
+    vector<const char *> vec;
+    std::shared_ptr<file_vector<sub<subchunk_size>>> vec2;
     
-    //file_vector<subchunk<subchunk_size>> vec2;
+    
 
     
-        public:
+    public:
     
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
-    	this->vec2=std::make_shared<file_vector<subchunk<subchunk_size>>>("splitted",true);
+    	//system("rm splitted");
+    	this->vec2=std::make_shared<file_vector<sub<subchunk_size>>>("splitted",true);
     	size=ssize;
         if(ssize%_chunksize==0)
             	{Num_chunks=ssize/_chunksize;}
@@ -54,7 +58,7 @@ class CompDec{
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
         Compress_chunks();
-        Decompress_chunks();
+        //Decompress_chunks();
         Split_compressed(total_pages);
   
 
@@ -71,7 +75,7 @@ class CompDec{
     void Compress_chunks()
     { for(int i=0;i<Num_chunks-1;i++)
    		    {//Allocate memory
-    		char src[C*sizeof(T)];
+    		char *src=new char[C*sizeof(T)];
     		//Copy given string into allocated memory
 			memcpy(src,chunks[i],_chunksize*sizeof(T));
 			//Max size for compression
@@ -89,7 +93,7 @@ class CompDec{
 	     	
 	     	/*******************************************************/
 			//Last Chunk compression
-			char last_src[(size-(_chunksize*(Num_chunks-1)))*sizeof(T)];
+			char *last_src=new char[(size-(_chunksize*(Num_chunks-1)))*sizeof(T)];
 			
     		//Copy given string into allocated memory
 			memcpy(last_src,chunks[Num_chunks-1],(size-(_chunksize*(Num_chunks-1)))*sizeof(T));
@@ -331,18 +335,22 @@ class CompDec{
 		 for (auto j = compressed.begin(); j != compressed.end(); ++j) 
          	{Splitted_Compressed_chunks.emplace_back(*j);
 		  	 num+=1;
-		  	 subchunk<subchunk_size> s;
-		  	 memcpy(s.chunk,*j,subchunk_size);
+		  	 int index=0;
+		  	 sub<subchunk_size> ch;//ch.chunk=new char[sizes[index]];
+		  	 //char *s=new char[sizes[index]];
+		  	 memcpy(ch.chunk,*j,sizes[index]);
 			 //s.chunk = *j;
-			 //cout<<"vec2 "<<vec2<<endl;
-			 vec2->push_back(s);
-			 //fv.emplace_back(s);
-			}
+			 //if(index<10)
+			 //cout<<"vec2 "<<*j<<endl;
+			 vec2->push_back(ch);
+			 //vec.emplace_back(s);
+			 index++;
+			}//cout<<"number of pages"<<(sizes.size())*Num_chunks<<endl;
 			for (auto j = sizes.begin(); j != sizes.end(); ++j) 
          	{Splitted_Compressed_chunks_sizes.emplace_back(*j);
-		  	 
+		  	 //cout<<"vec3 "<<*j<<endl;
 			}
-			
+			//sizes.clear();compressed.clear();
          }
          else 
          run_screaming("Failed to split compressed chunks, size of page is bigger thank chunk's size",1);
@@ -419,11 +427,11 @@ class CompDec{
 	vector<const char*>get_split()
 	{
 	return(Splitted_Compressed_chunks);
-	}
+	}/*
 	const char*get_split(int i)
 	{
 	return(Splitted_Compressed_chunks[i]);
-	}
+	}*/
 	size_t get_size()
 	{return(Splitted_Compressed_chunks.size() );}
 	
@@ -549,7 +557,7 @@ class CompDec{
 
 int main()
 {
-    unsigned int n=1000000,_chunksize,page_size;
+    unsigned int n=50000000,_chunksize,page_size;
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
@@ -566,32 +574,40 @@ int main()
 	/*cout<<"splitted = "<<splitted[8]<<endl;
     cout<<"here = "<<splitted_sizes[39]<<endl;*/
 	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
+	
+	vector<int> queries = vector<int>({0, 31, 500, 6775380,0, 31, 500, 677538,0, 31, 500, 9677538,0, 31, 500, 49999999,0, 31, 500, 677538});
     //A.Decompress_chunks();//Decompress the chunks
-    int key;cout<<"Enter key to find ";
-    cin>>key;
+    //int key;cout<<"Enter key to find ";
+    //cin>>key;
     
     //cout<<"last term in array "<<array[0]<<endl;
     //cout<<"last Decompressed "<<A.Get_DeCompressed_Chunks()[1][0]<<endl;
     //A.Verify_operation();//Verify compression/decompression operations
     //Find with Full scan
     auto start = std::chrono::high_resolution_clock::now();
-    cout<<"offset of "<<key<<" = "<<A.Find(key)<<endl;
+    A.Decompress_chunks();
+    for(auto &query : queries)
+    {
+    cout<<"offset of "<<query<<" = "<<A.Find(query)<<endl;
+    }
     auto stop = std::chrono::high_resolution_clock::now(); 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[SCAN]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
+    std::cout << "[SCAN Decompressed chunks]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
     //Find with zonemaps
     int loc;
-    
-    cout<<"offset with scan= ";A.Finds(key,true,loc);cout<<loc<<endl;
-    
-    size_t si;int a,b;
+    //cout<<"offset with scan= ";A.Finds(key,true,loc);cout<<loc<<endl;
     start = std::chrono::high_resolution_clock::now();
-    cout<<"With split "<<A.Find_after(key,true,si,A.Get_total_pages_number(),a,b)<<endl;
-    stop = std::chrono::high_resolution_clock::now(); 
+    for(auto &query : queries)
+    {
+    size_t si;int a,b;
+    cout<<"With split "<<A.Find_after(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
+    //cout<<"begin= "<<a<<" end= "<<b<<endl;
+    //cout<<"size "<<si<<endl;
+    }
+    stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[ZoneMaps]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
-    cout<<"begin= "<<a<<" end= "<<b<<endl;
-    cout<<"size "<<si<<endl;
+    std::cout << "[ZoneMaps + Decompress concerned chunk]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
+    
     /*
     char*ch=new  char[376065*sizeof(char)];ch=A.join();
     cout<<ch[1]<<endl;
@@ -625,7 +641,7 @@ int main()
 		 //LZ4_decompress_safe(A.get_split(94),regen_buffer, A.Get_compressed_size(0), 20000*sizeof(int));
 		 //cout<<"\n"<<*((int*)regen_buffer)<<endl;
 		 //cout<<"first chunk of the array "<<A.Get_Chunks()[0][0]<<endl;*/
-    	 cout<<"first comp size "<<A.get_split_size(1)<<endl;
+    	 //cout<<"first comp size "<<A.get_split_size(1)<<endl;
     	 //cout<<A.get_split(900)<<endl;
     	 /*char* new_char=new char[200000*sizeof(int)];
     	 new_char=A.join_first();
