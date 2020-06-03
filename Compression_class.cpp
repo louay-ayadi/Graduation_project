@@ -245,6 +245,8 @@ class CompDec{
     size_t Find_with_file_vector(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end)
     {
     bool found_it = false;
+    //if(use_zone_maps)
+    {
     for(size_t i=0; i<zonemaps.Size(); i++) {
     		auto zm = zonemaps.Get(i);
             if(zm->Intersects(key, key)) {
@@ -284,6 +286,31 @@ class CompDec{
             if (found_it)
             break;
          }
+         }
+    }
+    size_t Find_with_file_vector_without_zonemaps(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end)
+    {
+    bool found_it = false;
+    begin=0;
+    end=total_pages;
+    char *regen_buffer1=new  char[size*sizeof(int)];
+    size_t total_compressed_size=0;
+    for(int i=0;i<Num_chunks-1;i++)
+    total_compressed_size+=compressed_chunks_sizes[i];
+	char* new_char1=new char[total_compressed_size];
+	new_char1=join(begin,end-1,total_compressed_size,vec2,Splitted_Compressed_chunks_sizes);
+	sz=LZ4_decompress_safe(new_char1,regen_buffer1, total_compressed_size, size*sizeof(int));
+    T* decompressed_chunk=(T*)regen_buffer1;
+                for(size_t j=0; j<size; j++) {
+                    if(decompressed_chunk[j] == key) {
+                        
+                        found_it = true;
+                        return j; 
+                        break;
+                    }
+                    if (found_it)
+                    break;
+                }      
     }
     
     //Destructor
@@ -623,7 +650,7 @@ int main()
     //Some keys to search for 
     vector<int> queries = vector<int>({0, 31, 500, 6677538,0, 31, 500, 677538,0, 31, 500, 6677538,0, 31, 500, 6677538,0, 31, 500, 6677538});
     auto zonemaps =createzonemaps<int>(array,200000,n);
-     /*************Find with Full scan of the vector***************/
+     /*************Find with Full scan of the real vector ***************/
     auto start = std::chrono::high_resolution_clock::now(); 
     int found = 0;
     for(auto &query : queries) {
@@ -637,7 +664,7 @@ int main()
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[Full scan of the vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-	/*************Find with Zonemaps ***************/
+	/*************Find with Zonemaps with the real vector ***************/
     start = std::chrono::high_resolution_clock::now(); 
     found = 0;
     for(auto &query : queries) {
@@ -712,7 +739,19 @@ int main()
     stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
+    /***********Find without zonemaps from the compressed_file_vector **********
+    start = std::chrono::high_resolution_clock::now();
+    for(auto &query : queries)
+    {
+    size_t si;int a,b;
+    cout<<"With split "<<A.Find_with_file_vector_without_zonemaps(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
+    //cout<<"begin= "<<a<<" end= "<<b<<endl;
+    //cout<<"size "<<si<<endl;
+    }
+    stop = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[Full Scan of Compressed File_vector ]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
+	*/
     
-   
     return 0;
 }
