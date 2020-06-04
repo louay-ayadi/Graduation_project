@@ -327,12 +327,14 @@ class CompDec{
 		 {
 		 vector<const char*>compressed;
 		 vector<size_t>sizes;
+		 int index=0;
 		 compressed=Split_Array(Compressed_chunks[i],(compressed_chunks_sizes[i]),page_size,sizes);
 		 for (auto j = compressed.begin(); j != compressed.end(); ++j) 
          	{Splitted_Compressed_chunks.emplace_back(*j);
 		  	 num+=1;
 		  	 subchunk<subchunk_size> s;
-		  	 memcpy(s.chunk,*j,subchunk_size);
+		  	 memcpy(s.chunk,*j,sizes[index]);
+		  	 index++;
 			 //s.chunk = *j;
 			 //cout<<"vec2 "<<vec2<<endl;
 			 vec2->push_back(s);
