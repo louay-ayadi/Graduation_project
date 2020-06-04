@@ -551,7 +551,7 @@ class CompDec{
 
 int main()
 {
-    unsigned int n=1000000,_chunksize,page_size;
+    unsigned int n=50000000,_chunksize,page_size;
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
