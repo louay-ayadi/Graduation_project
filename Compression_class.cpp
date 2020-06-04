@@ -400,14 +400,21 @@ class CompDec{
 		 {
 		 vector<const char*>compressed;
 		 vector<size_t>sizes;
+		 int index=0;
 		 compressed=Split_Array(Compressed_chunks[i],(compressed_chunks_sizes[i]),page_size,sizes);
 		 for (auto j = compressed.begin(); j != compressed.end(); ++j) 
          	{Splitted_Compressed_chunks.emplace_back(*j);
 		  	 num+=1;
+<<<<<<< HEAD
 		  	 int index=0;
 		  	 sub<subchunk_size> ch;//ch.chunk=new char[sizes[index]];
 		  	 //char *s=new char[sizes[index]];
 		  	 memcpy(ch.chunk,*j,sizes[index]);
+=======
+		  	 subchunk<subchunk_size> s;
+		  	 memcpy(s.chunk,*j,sizes[index]);
+		  	 index++;
+>>>>>>> testb
 			 //s.chunk = *j;
 			 //if(index<10)
 			 //cout<<"vec2 "<<*j<<endl;
