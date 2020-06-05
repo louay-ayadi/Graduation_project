@@ -543,9 +543,49 @@ class CompDec{
 	 size_t get_split_size(int i){
     return Splitted_Compressed_chunks_sizes[i];
     }
+    
+    size_t Find_with_file_vector_without_zonemaps(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end)
+    {
+    bool found_it = false;
+    begin=0;
+    end=total_pages;
+    char *regen_buffer1=new  char[size*sizeof(int)];
+    size_t total_compressed_size=0;
+    for(int i=0;i<Num_chunks-1;i++)
+    total_compressed_size+=compressed_chunks_sizes[i];
+	char* new_char1=new char[total_compressed_size];
+	new_char1=join(begin,end-1,total_compressed_size,vec2,Splitted_Compressed_chunks_sizes);
+	sz=LZ4_decompress_safe(new_char1,regen_buffer1, total_compressed_size, size*sizeof(int));
+    T* decompressed_chunk=(T*)regen_buffer1;
+                for(size_t j=0; j<size; j++) {
+                    if(decompressed_chunk[j] == key) {
+
+                        found_it = true;
+                        return j; 
+                        break;
+                    }
+                    if (found_it)
+                    break;
+                }      
+    }
+    
+    char* join(int begin, int end,size_t size,std::shared_ptr<file_vector<sub<subchunk_size>>> vec,vector<size_t>v)
+	{
+    char *ch=new char[size];
+     for(int i=begin;i<=end;++i)
+    {//size_t x=v[i];
+    memcpy(ch+((i-begin)*v[i-1]),vec->at(i).chunk,v[i]);
+    }
+    return ch;
+	}
 };
 
-
+template<typename T>
+	ZoneMapSet<T>createzonemaps(T *array,size_t sizeofzone,size_t total_size){
+		ZoneMapSet<T>zonemaps(sizeofzone*sizeof(T),total_size);
+        zonemaps.InitFromData(array, total_size);
+        return zonemaps;
+	}
 
 
 
@@ -638,34 +678,16 @@ int main()
     	 LZ4_decompress_safe(new_char,regen_buffer, A.Get_compressed_size(0), 200000*sizeof(int));
 		 cout<<"\n"<<*((int*)regen_buffer+199999)<<endl;*/
 		 cout<<"last part of first chunk= "<<array[5]<<endl;
-		 //A.gt_dec();
-		 /*
-		 char *regen_buffer1=new  char[300000*sizeof(int)];
-		 char* new_char1=new char[A.Get_compressed_size(0)];
-		 new_char1=A.join(0,7,A.Get_compressed_size(0),A.get_split(),A.Get_sizes());
-		 cout<<"spliii"<<splitted[25]<<endl;size_t sz;
-		 sz=LZ4_decompress_safe(new_char1,regen_buffer1, A.Get_compressed_size(0), 300000*sizeof(int));
-		 cout<<"size decompressed= "<<sz<<endl;
-		 cout<<"\n"<<*((int*)regen_buffer1+299999)<<endl;
-		 //delete[]new_char1;delete[]regen_buffer1;
-		 //vector<size_t>v;/*
-		 for(int i=0;i<5;i++)
-		 {A.Split_Array(A.Get_Compressed_Chunks()[i],A.Get_compressed_size(i),15001,v);
-		 
-		 }
-		 */
-		 /*
-		 int counter =0;
-		 for(auto x=splitted.cbegin();x!=splitted.cend();++x)
-		 {cout<<"part"<<counter<<"="<<*x<<endl;counter++;}
-    	 int begin=0;/*
-    	 char*ch2=new char[A.Get_compressed_size(0)];
-    	 for(int i=begin;i<8;++i)
-    	{//size_t x=v[i];
-    	memcpy(ch2+((i-begin)*A.Get_sizes()[i]),A.get_split()[i],A.Get_sizes()[i]);
-    	}
-    	sz=LZ4_decompress_safe(ch2,regen_buffer1, A.Get_compressed_size(0), 200000*sizeof(int));
-		 cout<<"size decompressed= "<<sz<<endl;
-		 cout<<"\n"<<*((int*)regen_buffer1+199999)<<endl;*/
+		 start = std::chrono::high_resolution_clock::now();
+    	for(auto &query : queries)
+    		{
+    		size_t si;int a,b;
+    		cout<<"With split "<<A.Find_with_file_vector(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
+    		//cout<<"begin= "<<a<<" end= "<<b<<endl;
+    		//cout<<"size "<<si<<endl;
+   			 }
+         stop = std::chrono::high_resolution_clock::now();
+    	 duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
     return 0;
 }
