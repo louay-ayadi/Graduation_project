@@ -252,10 +252,10 @@ class CompDec{
     		auto zm = zonemaps.Get(i);
             if(zm->Intersects(key, key)) {
             int num_pages;
-            if(compressed_chunks_sizes[0]%page_size==0)
-            num_pages=compressed_chunks_sizes[0]/page_size;
+            if(compressed_chunks_sizes[i]%page_size==0)
+            num_pages=compressed_chunks_sizes[i]/page_size;
             else
-            num_pages=(compressed_chunks_sizes[0]/page_size)+1;
+            num_pages=(compressed_chunks_sizes[i]/page_size)+1;
             //added here
             //int begin,end;
             if(i!=Num_chunks-1){
@@ -643,7 +643,8 @@ class CompDec{
 int main()
 {
     system("rm splitted");
-    unsigned int n=50000000,_chunksize,page_size;
+    unsigned int n=10000000,_chunksize,page_size;
+    cout<<"Size of array "<<n<<endl;
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
@@ -651,9 +652,11 @@ int main()
 		array[i]=i;
     }
     //Some keys to search for 
-    vector<int> queries = vector<int>({0, 31, 500, 256677538,0, 31, 500, 677538,0, 31, 500, 6677538,0, 31, 500, 677538,0, 31, 500, 6677538});
+    vector<int> queries = vector<int>({0, 31, 500, 9677538,0, 31, 500, 677538,0, 31, 500, 9677538,0, 31, 500, 677538,0, 31, 500, 677538});
+    /*
     auto zonemaps =createzonemaps<int>(array,200000,n);
-     /*************Find with Full scan of the real vector ***************/
+     //Find with Full scan of the real vector
+    
     auto start = std::chrono::high_resolution_clock::now(); 
     int found = 0;
     for(auto &query : queries) {
@@ -667,7 +670,7 @@ int main()
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[Full scan of the vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-	/*************Find with Zonemaps with the real vector ***************/
+	//Find with Zonemaps with the real vector
     start = std::chrono::high_resolution_clock::now(); 
     found = 0;
     for(auto &query : queries) {
@@ -690,13 +693,13 @@ int main()
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZONEMAPS]\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-    /*											*/
+    						*/					
     CompDec<int,200000,4096>A(array,n);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
     vector<size_t>splitted=A.Get_sizes();
 	
 	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
-	std::shared_ptr<file_vector<subchunk<4096>>> vec2=A.Get_file();
+	//std::shared_ptr<file_vector<subchunk<4096>>> vec2=A.Get_file();
 	//for(auto x=vec2->begin(); x!=vec2->end(); x++)
     //cout<<"vec "<<(*x).chunk<<endl;
 	//cout<<A.Get_file()->at(1).get_chunk()<<endl;
@@ -704,20 +707,21 @@ int main()
     //A.Decompress_chunks();//Decompress the chunks
     
     //A.Verify_operation();//Verify compression/decompression operations
-    /************Find with Full scan from the class after decompressing the chunks*************/
-    start = std::chrono::high_resolution_clock::now();
+    /************Find with Full scan from the class after decompressing the chunks*************
+    auto start = std::chrono::high_resolution_clock::now();
     A.Decompress_chunks();
     for(auto &query : queries)
     {
     cout<<"offset of "<<query<<" = "<<A.Find(query)<<endl;
     }
-    stop = std::chrono::high_resolution_clock::now(); 
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    auto stop = std::chrono::high_resolution_clock::now(); 
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN Decompressed chunks]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
-    /***********Find with zonemaps from the class and decompresses the concerned vector*************/
+    /***********Find with zonemaps from the class and decompresses the concerned vector*************
     int loc;
     //cout<<"offset with scan= ";A.Finds(key,true,loc);cout<<loc<<endl;
-    start = std::chrono::high_resolution_clock::now();
+    
+   auto start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
     {
     size_t si;int a,b;
@@ -725,25 +729,25 @@ int main()
     //cout<<"begin= "<<a<<" end= "<<b<<endl;
     //cout<<"size "<<si<<endl;
     }
-    stop = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps + Decompress concerned chunk]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
     
-    /***********Find with zonemaps from the compressed_file_vector and decompresses the concerned vector*************/
+    /***********Find with zonemaps from the compressed_file_vector and decompresses the concerned vector************
     
     start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
     {
     size_t si;int a,b;
-    cout<<"With split "<<A.Find_with_file_vector(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
+    cout<<"Offset With split "<<A.Find_with_file_vector(query,true,si,A.Get_total_pages_number(),a,b)<<endl; 
     //cout<<"begin= "<<a<<" end= "<<b<<endl;
     //cout<<"size "<<si<<endl;
     }
     stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
-    /***********Find without zonemaps from the compressed_file_vector **********
-    start = std::chrono::high_resolution_clock::now();
+    /***********Find without zonemaps from the compressed_file_vector ***********/
+    auto start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
     {
     size_t si;int a,b;
@@ -751,10 +755,10 @@ int main()
     //cout<<"begin= "<<a<<" end= "<<b<<endl;
     //cout<<"size "<<si<<endl;
     }
-    stop = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[Full Scan of Compressed File_vector ]\t\t Found " <<"first match in " << duration.count() << " μs" << std::endl;
-	*/
+	
     
     return 0;
 }
