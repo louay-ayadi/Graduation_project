@@ -551,6 +551,10 @@ class CompDec{
 
 int main()
 {
+	// Initialize random number generator
+    srand(1234);
+    // Remove previous - if any - memory mapped file
+    system("rm test_queries");
     unsigned int n=1000000,_chunksize,page_size;
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
