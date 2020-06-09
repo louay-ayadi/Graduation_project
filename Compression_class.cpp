@@ -377,6 +377,8 @@ class CompDec{
      Splitted_Compressed_chunks_sizes.clear();
      chunks_sizes.clear();
      Splitted_Compressed_chunks.clear();
+     delete[] decompressed_data;
+     delete[] compressed_joined;
     }
     
     //Function to Split the Array to little chunks depending on given _chunksize
