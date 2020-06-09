@@ -384,7 +384,7 @@ class CompDec{
     //Function to Split the Array to little chunks depending on given _chunksize
     vector<T*>Split_Array(const T* Tab,size_t n, int _chunksize)
     {
-     vector<int*>chunks;
+     vector<int*>chunks;int al;
      
      int Num_chunks = (n - 1) / _chunksize + 1;
      //Num_chunks=n/_chunksize;
