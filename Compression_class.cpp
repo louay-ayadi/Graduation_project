@@ -692,7 +692,7 @@ int main()
     system("rm splitted");
     system("rm test_queries");
     srand(1234);
-    unsigned int n=100000000,_chunksize,page_size;
+    unsigned int n=10000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_queries", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
