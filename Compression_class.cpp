@@ -1,4 +1,4 @@
-
+#include <bits/stdc++.h>
 #include <stdio.h>
 #include<iostream>
 #include <string.h>  // For memcmp()
@@ -37,7 +37,7 @@ class CompDec{
     char*				 decompressed_data;
     char* 				 compressed_joined;
     size_t 				 max_compressed_size;
-
+	vector<int> 		 number_of_pages_foreach_chunk;
     
     public:
     
@@ -64,7 +64,14 @@ class CompDec{
     	this->max_compressed_size=*it;
 		this->compressed_joined=new char[max_compressed_size];
 		cout<<"max compressed size"<<*it<<endl;
-
+		for(int i=0;i<Num_chunks;i++)
+		{
+		 int Num_p = (compressed_chunks_sizes[i] - 1) / subchunk_size + 1;
+		 number_of_pages_foreach_chunk.push_back(Num_p);
+		}
+		//for(int i=0;i<Num_chunks;i++)
+		//cout<<"comp "<<i<<"has "<<number_of_pages_foreach_chunk[i]<<"pages"<<endl;
+		cout << "Sum = "<< accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.end(), 0); 
     }
     std::shared_ptr<file_vector<subchunk<subchunk_size>>> Get_file()
     {
@@ -242,34 +249,36 @@ class CompDec{
             break;
          }
     }
-    size_t Find_with_file_vector(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end,bool &found_it=false)
+    size_t Find_with_file_vector(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end,bool &found_it)
     {
     //bool found_it = false;
     //if(use_zone_maps)
     {
     for(size_t i=0; i<zonemaps.Size(); i++) {
     		auto zm = zonemaps.Get(i);
-            if(zm->Intersects(key, key)) {
-            int num_pages;
+            if(zm->Intersects(key, key)) {//cout<<"intersect and key= "<<key<<endl;
+            int num_pages=0;
             if(compressed_chunks_sizes[i]%page_size==0)
             num_pages=compressed_chunks_sizes[i]/page_size;
             else
             num_pages=(compressed_chunks_sizes[i]/page_size)+1;
             //added here
             //int begin,end;
-            if(i!=Num_chunks-1){
+            /*if(i!=Num_chunks-1){
                 begin=i*num_pages;
                 end=(i+1)*num_pages;
             }
             else{
             	begin=(Num_chunks-1)*num_pages;
                 end=total_pages;
-            }
+            }*/
+            begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i, 0);
+            end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i+1, 0);
             //to here
-         
+         	//cout<<"begin= "<<begin<<endl;cout<<"end= "<<end<<endl;cout<<"i= "<<i<<endl;
 		 	join(compressed_joined,begin,end-1,compressed_chunks_sizes[i],vec2,Splitted_Compressed_chunks_sizes);
 		 	sz=LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[i], chunks_sizes[i]*sizeof(int));
-            
+            //cout<<"ratio= "<<(float) compressed_chunks_sizes[i]/sz<<endl;
             
             
             	T* decompressed_chunk=(T*)decompressed_data;
@@ -304,20 +313,22 @@ class CompDec{
             num_pages=(compressed_chunks_sizes[i]/page_size)+1;
             //added here
             int begin,end;
-            if(i!=Num_chunks-1){
+            /*if(i!=Num_chunks-1){
                 begin=i*num_pages;
                 end=(i+1)*num_pages;
             }
             else{
             	begin=(Num_chunks-1)*num_pages;
                 end=total_pages;
-            }
-            //to here
-           // char *decompressed_data=new  char[chunks_sizes[i]*sizeof(int)];
-		 	
+            } 	*/
+            begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i, 0);
+            end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i+1, 0);
+            //cout<<"begin= "<<begin<<endl;cout<<"end= "<<end<<endl;
 		 	join(compressed_joined,begin,end-1,compressed_chunks_sizes[i],vec2,Splitted_Compressed_chunks_sizes);
 		 	sz=LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[i], chunks_sizes[i]*sizeof(int));
-		 	//cout<<"size"<<sz<<endl;
+		 	//cout<<"ratio= "<<(float) compressed_chunks_sizes[i]/sz<<endl;
+		 	//cout<<"i= "<<i<<endl;
+		 	//cout<<"sz"<<sz<<endl;
             T* decompressed_chunk=(T*)decompressed_data;
                 for(int j=0;j<chunks_sizes[i]; j++) {
                     if(decompressed_chunk[j] == key) {
@@ -327,7 +338,7 @@ class CompDec{
                     //cout<<"not found"<<decompressed_chunk[j]<<endl;
                 }
 			i++;
-            if (i==Num_chunks)
+            if (i==Num_chunks or found_it)
             break;
             
            
@@ -384,7 +395,7 @@ class CompDec{
     //Function to Split the Array to little chunks depending on given _chunksize
     vector<T*>Split_Array(const T* Tab,size_t n, int _chunksize)
     {
-     vector<int*>chunks;int al;
+     vector<int*>chunks;
      
      int Num_chunks = (n - 1) / _chunksize + 1;
      //Num_chunks=n/_chunksize;
@@ -694,25 +705,32 @@ int main()
     system("rm splitted");
     system("rm test_queries");
     srand(1234);
-    unsigned int n=10000000,_chunksize,page_size;
+    unsigned int n=20000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_queries", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
     {
-		array[i]=rand()%1000000;
+		array[i]=rand()%1000;
 		vector_test_queries.push_back(array[i]);
     }
-    CompDec<int,200000,4096>A(array,n);
+    CompDec<int,20000,4096>A(array,n);
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
-    vector<size_t>splitted=A.Get_sizes();
-	
+    vector<size_t>splitted=A.Get_sizes();int nump=0;
+	for(auto i=splitted.begin();i!=splitted.end();i++)
+	{nump++;
+	//if(*i>32)
+	//cout<<"page "<<*i<<endl;
+	}
+	cout<<"number of compressed pages= "<<nump<<endl;
 	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
+	cout<<"size 19 "<<A.Get_compressed_size(19)<<endl;
     //Some keys to search for 
     vector<int> queries = vector<int>({0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538});
     int coun=0;
     int found = 0;
+	/*SCAN of real file vector*/
     auto start = std::chrono::high_resolution_clock::now(); 
     
     for(auto &query : queries) {
@@ -726,7 +744,7 @@ int main()
     auto stop = std::chrono::high_resolution_clock::now(); 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN of real file vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-   
+   /*SCAN of the compressed file_vector*/
     start = std::chrono::high_resolution_clock::now(); 
 	for(auto &query : queries)
     {
@@ -765,7 +783,7 @@ int main()
             auto zm = zonemaps.Get(i);
             if(zm->Intersects(query, query)) {
                 for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
-                    if(array[j] == query) {
+                    if(vector_test_queries.at(j) == query) {
                         found++;
                         found_it = true;
                         break;
@@ -780,9 +798,10 @@ int main()
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZONEMAPS]\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
     bool found_it;found=0;
+    /*ZoneMaps +Compressed File_vector*/
      start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
-    {
+    {found_it=false;
     size_t si;int a,b;
     A.Find_with_file_vector(query,true,si,A.Get_total_pages_number(),a,b,found_it);
 	if(found_it)
@@ -793,6 +812,7 @@ int main()
      stop = std::chrono::high_resolution_clock::now();
      duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found "<<found<<" matches in\t" << duration.count() << " μs" << std::endl;
+    //A.print_ratio();
     
     return 0;
     }
