@@ -8,6 +8,7 @@
 #include <chrono> 
 #include "lz4.h" 
 #include "/home/louay/Downloads/File-Vector-master/file_vector.hpp"
+#include "LRUCache.cpp"
 using namespace std;
 
 template<size_t s>
@@ -38,13 +39,13 @@ class CompDec{
     char* 				 compressed_joined;
     size_t 				 max_compressed_size;
 	vector<int> 		 number_of_pages_foreach_chunk;
-    
+    LRUCache<int,int*>	*cache;
     public:
     
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
-    	
+    	this->cache=new LRUCache<int,int*>(5);
     	this->vec2=std::make_shared<file_vector<subchunk<subchunk_size>>>("splitted",true);
     	size=ssize;
         if(ssize%_chunksize==0)
@@ -57,13 +58,15 @@ class CompDec{
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
         Compress_chunks();
+        auto it = max_element(std::begin(compressed_chunks_sizes), std::end(compressed_chunks_sizes));
+        //cout<<"max compressed size"<<*it<<endl;
         //Decompress_chunks();
         Split_compressed(total_pages);
   		this->decompressed_data=new  char[chunks_sizes[0]*sizeof(int)];
-    	auto it = max_element(std::begin(compressed_chunks_sizes), std::end(compressed_chunks_sizes));
+    	
     	this->max_compressed_size=*it;
 		this->compressed_joined=new char[max_compressed_size];
-		cout<<"max compressed size"<<*it<<endl;
+		
 		for(int i=0;i<Num_chunks;i++)
 		{
 		 int Num_p = (compressed_chunks_sizes[i] - 1) / subchunk_size + 1;
@@ -71,7 +74,7 @@ class CompDec{
 		}
 		//for(int i=0;i<Num_chunks;i++)
 		//cout<<"comp "<<i<<"has "<<number_of_pages_foreach_chunk[i]<<"pages"<<endl;
-		cout << "Sum = "<< accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.end(), 0); 
+		//cout << "Sum = "<< accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.end(), 0)<<endl; 
     }
     std::shared_ptr<file_vector<subchunk<subchunk_size>>> Get_file()
     {
@@ -388,8 +391,10 @@ class CompDec{
      Splitted_Compressed_chunks_sizes.clear();
      chunks_sizes.clear();
      Splitted_Compressed_chunks.clear();
+     number_of_pages_foreach_chunk.clear();
      delete[] decompressed_data;
      delete[] compressed_joined;
+     delete cache;
     }
     
     //Function to Split the Array to little chunks depending on given _chunksize
@@ -462,7 +467,7 @@ class CompDec{
 		num=0;
 		for(int i=0;i<Num_chunks;i++)
 		{
-		 if(page_size<=compressed_chunks_sizes[i])
+		 //if(page_size<compressed_chunks_sizes[i])
 		 {
 		 vector<const char*>compressed;
 		 vector<size_t>sizes;
@@ -488,8 +493,10 @@ class CompDec{
 			}
 			//sizes.clear();compressed.clear();
          }
-         else 
-         run_screaming("Failed to split compressed chunks, size of page is bigger thank chunk's size",1);
+         /*else 
+         {cout<<"size= "<<compressed_chunks_sizes[i+2]<<endl;
+         cout<<"pg_size = "<<page_size<<endl;
+         run_screaming("Failed to split compressed chunks, size of page is bigger thank chunk's size",1);}*/
 	    }
 		return Splitted_Compressed_chunks_sizes ;
 	}
@@ -690,13 +697,74 @@ class CompDec{
 	 size_t get_split_size(int i){
     return Splitted_Compressed_chunks_sizes[i];
     }
+    //overload of the operator [] to access an elmt at a given index, decompress the concerned chunk and return it
+    const T& operator[](int index) 
+	{ 
+    if (index < 0 || index >= size) { 
+        cout << "Array index out of bound, exiting";
+        exit(0); 
+    }
+    int chunk_number = (index ) / _chunksize ;
+    if(cache->exist(chunk_number))
+    //cout<<"begin "<<chunk_number<<endl;
+    {//cout<<"found"<<endl;
+    return cache->get(chunk_number)[index-(chunk_number*_chunksize)]; }
+    else 
+    {
+    int begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number, 0);
+    int end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number+1, 0);
+    //cout<<"begin= "<<begin<<endl;cout<<"end= "<<end<<endl;
+	join(compressed_joined,begin,end-1,compressed_chunks_sizes[chunk_number],vec2,Splitted_Compressed_chunks_sizes);
+    LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[chunk_number], chunks_sizes[chunk_number]*sizeof(int));
+    T* decompressed_chunk=(T*)decompressed_data;
+    //cout<<"dec "<<decompressed_chunk[index-(chunk_number*_chunksize)];
+    cache->put(chunk_number,decompressed_chunk);
+    return decompressed_chunk[index-(chunk_number*_chunksize)]; 
+	}
+	}
+	
+	//Definition of the operator at() to access an elmt at a given index, decompress the concerned chunk and return it
+	const T& at(size_t const index){
+        if (index < 0 || index >= size) {
+            throw out_of_range("file_vector::at(int)");
+        } 
+    int chunk_number = (index ) / _chunksize ;  
+    int begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number, 0);
+    int end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number+1, 0);
+    join(compressed_joined,begin,end-1,compressed_chunks_sizes[chunk_number],vec2,Splitted_Compressed_chunks_sizes);
+    LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[chunk_number], chunks_sizes[chunk_number]*sizeof(int));
+    T* decompressed_chunk=(T*)decompressed_data;
+    return decompressed_chunk[index-(chunk_number*_chunksize)]; 
+    }
+    
+    const T* begin()
+    {
+     return &at(0);
+    } 
+    const T* end()
+    {
+     return &at(size);
+    }
+    const T& operator++ ()
+    { //return *at(index);
+    }
 };
+
+
     template<typename T>
 	ZoneMapSet<T>createzonemaps(T *array,size_t sizeofzone,size_t total_size){
 		ZoneMapSet<T>zonemaps(sizeofzone*sizeof(T),total_size);
         zonemaps.InitFromData(array, total_size);
         return zonemaps;
 	}
+
+
+
+
+
+
+
+
 
 
 
@@ -715,23 +783,49 @@ int main()
 		array[i]=rand()%1000;
 		vector_test_queries.push_back(array[i]);
     }
-    CompDec<int,20000,4096>A(array,n);
+    //Some keys to search for 
+    vector<int> queries = vector<int>({0, 31, 500, 6799,0, 55, 550, 38,9, 999, 500, 678,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 7538,0, 31, 500, 677,0, 31, 500, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 31, 5500, 538,0, 31, 421, 677,65, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 5500, 53});
+    CompDec<int,20000,8192>A(array,n);
+    vector<int>indexes=vector<int>({0, 100000,25,11,30,2,3,4,12,15,20,16,10,25,24,110,111,101,211,132,213,553});
+    int index;
+    cout<<"give the index of the element you want to access ";
+    cin>>index;
+    cout<<"verify here "<<array[index]<<endl;
+    auto start = std::chrono::high_resolution_clock::now(); 
+    cout<<"element = "<<A[index]<<endl;
+    auto stop = std::chrono::high_resolution_clock::now(); 
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "First search took " <<duration.count() << " μs" << std::endl;
+    //search with cache
+    start = std::chrono::high_resolution_clock::now(); 
+    for(auto &index:indexes)
+    A[index];
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "search with cache took " <<duration.count() << " μs" << std::endl;
+    //search without cache
+    start = std::chrono::high_resolution_clock::now(); 
+    for(auto &index:indexes)
+    A.at(index);
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "search without cache took " <<duration.count() << " μs" << std::endl;
+    cout<<"begin = "<<*A.begin()<<endl;
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
     vector<size_t>splitted=A.Get_sizes();int nump=0;
-	for(auto i=splitted.begin();i!=splitted.end();i++)
+	/*for(auto i=splitted.begin();i!=splitted.end();i++)
 	{nump++;
 	//if(*i>32)
 	//cout<<"page "<<*i<<endl;
-	}
-	cout<<"number of compressed pages= "<<nump<<endl;
+	}*/
+	//cout<<"number of compressed pages= "<<nump<<endl;
 	cout<<"number of compressed pages= "<<A.Get_total_pages_number()<<endl;
-	cout<<"size 19 "<<A.Get_compressed_size(19)<<endl;
-    //Some keys to search for 
-    vector<int> queries = vector<int>({0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538,0, 31, 500, 677538});
+	//cout<<"size 19 "<<A.Get_compressed_size(19)<<endl;
+    
     int coun=0;
     int found = 0;
 	/*SCAN of real file vector*/
-    auto start = std::chrono::high_resolution_clock::now(); 
+    start = std::chrono::high_resolution_clock::now(); 
     
     for(auto &query : queries) {
         for(auto &v : vector_test_queries) {
@@ -741,10 +835,10 @@ int main()
             }
         }
     }
-    auto stop = std::chrono::high_resolution_clock::now(); 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN of real file vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-   /*SCAN of the compressed file_vector*/
+   /*SCAN of the compressed file_vector*
     start = std::chrono::high_resolution_clock::now(); 
 	for(auto &query : queries)
     {
@@ -754,7 +848,7 @@ int main()
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN of the compressed file_vector]\t\t Found " << coun << " matches in " << duration.count() << " μs" << std::endl;
-    
+    */
    
     //Find with Full scan of the real vector
     found=0;
