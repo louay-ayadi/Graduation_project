@@ -40,6 +40,7 @@ class CompDec{
     size_t 				 max_compressed_size;
 	vector<int> 		 number_of_pages_foreach_chunk;
     LRUCache<int,int*>	*cache;
+    int index=0;
     public:
     
     //Constructor
@@ -699,7 +700,7 @@ class CompDec{
     }
     //overload of the operator [] to access an elmt at a given index, decompress the concerned chunk and return it
     const T& operator[](int index) 
-	{ 
+	{this->index=index; 
     if (index < 0 || index >= size) { 
         cout << "Array index out of bound, exiting";
         exit(0); 
@@ -739,14 +740,37 @@ class CompDec{
     
     const T* begin()
     {
-     return &at(0);
+     index=0;
+     return &at(index);
     } 
     const T* end()
     {
-     return &at(size);
-    }
+     index=size-1;
+     return &at(index);
+    }/*
     const T& operator++ ()
     { //return *at(index);
+    }*/
+    const T& operator ++()
+    {
+     /*if(index%_chunksize ==1&&index>1)*/
+     ++index;
+     return(at(index));
+         
+     //T* decompressed_chunk=(T*)decompressed_data;
+     //return *(decompressed_chunk+index);
+    }
+void test()
+    {
+    //this->decompressed_data=decompressed_data;
+     T* decompressed_chunk=(T*)decompressed_data;
+     cout<<""<<*(decompressed_chunk+index+1)<<endl;
+    }
+    
+     operator vector<char*>() {
+        vector<char*> dst;
+        dst.assign(vec2.begin(), vec2.end());
+        return dst;
     }
 };
 
@@ -760,20 +784,12 @@ class CompDec{
 
 
 
-
-
-
-
-
-
-
-
 int main()
 {
     system("rm splitted");
     system("rm test_queries");
     srand(1234);
-    unsigned int n=20000000,_chunksize,page_size;
+    unsigned int n=10000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_queries", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
@@ -786,13 +802,17 @@ int main()
     //Some keys to search for 
     vector<int> queries = vector<int>({0, 31, 500, 6799,0, 55, 550, 38,9, 999, 500, 678,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 7538,0, 31, 500, 677,0, 31, 500, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 31, 5500, 538,0, 31, 421, 677,65, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 5500, 53});
     CompDec<int,20000,8192>A(array,n);
-    vector<int>indexes=vector<int>({0, 100000,25,11,30,2,3,4,12,15,20,16,10,25,24,110,111,101,211,132,213,553});
+    vector<int>indexes=vector<int>({0, 100000,25,11,30,2,3,40000,12,15,20,16,10,25,24,110,111,101,211,132});
     int index;
     cout<<"give the index of the element you want to access ";
     cin>>index;
     cout<<"verify here "<<array[index]<<endl;
+    //cout<<"array[20000] "<<array[20000]<<endl;cout<<"array[20001] "<<array[20001]<<endl;
+    //cout<<"array[20002] "<<array[20002]<<endl;cout<<"array[20003] "<<array[9999999]<<endl;
     auto start = std::chrono::high_resolution_clock::now(); 
     cout<<"element = "<<A[index]<<endl;
+    //A.test();
+    //cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;
     auto stop = std::chrono::high_resolution_clock::now(); 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "First search took " <<duration.count() << " μs" << std::endl;
@@ -838,7 +858,7 @@ int main()
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN of real file vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-   /*SCAN of the compressed file_vector*
+    /*SCAN of the compressed file_vector*/
     start = std::chrono::high_resolution_clock::now(); 
 	for(auto &query : queries)
     {
@@ -848,7 +868,7 @@ int main()
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[SCAN of the compressed file_vector]\t\t Found " << coun << " matches in " << duration.count() << " μs" << std::endl;
-    */
+    
    
     //Find with Full scan of the real vector
     found=0;
@@ -907,7 +927,20 @@ int main()
      duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
     std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found "<<found<<" matches in\t" << duration.count() << " μs" << std::endl;
     //A.print_ratio();
-    
+    int test=0;
+    /*
+    cout<<"end "<<*A.end()<<endl;
+    cout<<"verif "<<A[99999]<<endl;
+    for(auto x=A.begin();x!=A.end();x++)
+    {test++;
+    if(*x<0)
+    cout<<*x<<endl;}
+    cout<<"number "<<test<<endl;
+    test=0;
+    for(auto &v:A)
+    test++;
+    cout<<"number "<<test<<endl;
+    //cout<<v<<endl;*/
     return 0;
     }
 
