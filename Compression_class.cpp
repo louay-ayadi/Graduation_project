@@ -39,14 +39,14 @@ class CompDec{
     char* 				 compressed_joined;
     size_t 				 max_compressed_size;
 	vector<int> 		 number_of_pages_foreach_chunk;
-    LRUCache<int,int*>	*cache;
+    LRUCache<int,T*>	*cache;
     int index=0;
     public:
     
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
-    	this->cache=new LRUCache<int,int*>(5);
+    	this->cache=new LRUCache<int,T*>(100);
     	this->vec2=std::make_shared<file_vector<subchunk<subchunk_size>>>("splitted",true);
     	size=ssize;
         if(ssize%_chunksize==0)
@@ -58,10 +58,18 @@ class CompDec{
         ZoneMapSet<T>zonemapss(C*sizeof(T),ssize);
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
+        auto start = std::chrono::high_resolution_clock::now();     
         Compress_chunks();
+        auto stop = std::chrono::high_resolution_clock::now(); 
+         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+         std::cout << "compression took " <<duration.count() << " μs" << std::endl;
         auto it = max_element(std::begin(compressed_chunks_sizes), std::end(compressed_chunks_sizes));
         //cout<<"max compressed size"<<*it<<endl;
-        //Decompress_chunks();
+        /*start = std::chrono::high_resolution_clock::now(); 
+        Decompress_chunks();
+        stop = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+        std::cout << "Decompression took " <<duration.count() << " μs" << std::endl;*/
         Split_compressed(total_pages);
   		this->decompressed_data=new  char[chunks_sizes[0]*sizeof(int)];
     	
@@ -254,38 +262,22 @@ class CompDec{
          }
     }
     size_t Find_with_file_vector(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end,bool &found_it)
-    {
-    //bool found_it = false;
-    //if(use_zone_maps)
-    {
-    for(size_t i=0; i<zonemaps.Size(); i++) {
-    		auto zm = zonemaps.Get(i);
-            if(zm->Intersects(key, key)) {//cout<<"intersect and key= "<<key<<endl;
-            int num_pages=0;
-            if(compressed_chunks_sizes[i]%page_size==0)
-            num_pages=compressed_chunks_sizes[i]/page_size;
-            else
-            num_pages=(compressed_chunks_sizes[i]/page_size)+1;
-            //added here
-            //int begin,end;
-            /*if(i!=Num_chunks-1){
-                begin=i*num_pages;
-                end=(i+1)*num_pages;
-            }
-            else{
-            	begin=(Num_chunks-1)*num_pages;
-                end=total_pages;
-            }*/
+    { for(size_t i=0; i<zonemaps.Size(); i++) {
+    	auto zm = zonemaps.Get(i);
+        if(zm->Intersects(key, key)) {//cout<<"intersect and key= "<<i<<endl;
+           	int num_pages=(compressed_chunks_sizes[i] - 1) / page_size + 1;       
             begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i, 0);
             end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i+1, 0);
-            //to here
-         	//cout<<"begin= "<<begin<<endl;cout<<"end= "<<end<<endl;cout<<"i= "<<i<<endl;
-		 	join(compressed_joined,begin,end-1,compressed_chunks_sizes[i],vec2,Splitted_Compressed_chunks_sizes);
+            join(compressed_joined,begin,end-1,compressed_chunks_sizes[i],vec2,Splitted_Compressed_chunks_sizes);
+		 	//auto start = std::chrono::high_resolution_clock::now(); 
 		 	sz=LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[i], chunks_sizes[i]*sizeof(int));
-            //cout<<"ratio= "<<(float) compressed_chunks_sizes[i]/sz<<endl;
-            
-            
-            	T* decompressed_chunk=(T*)decompressed_data;
+          	/*auto stop = std::chrono::high_resolution_clock::now(); 
+    		auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+   			 if(duration.count()>0) 
+    		{std::cout << "Decompression(fv_no_cache) took " <<duration.count() << " μs" << std::endl;
+    		cout<<"chunk"<<i<<endl;
+    		}*/
+          	T* decompressed_chunk=(T*)decompressed_data;
                 for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
                     if(decompressed_chunk[j-(i*_chunksize)] == key) {
                         
@@ -298,8 +290,48 @@ class CompDec{
             if (found_it)
             break;
          }
+    }
+    //find fv+zm+cache_impl
+    size_t Find_with_file_vector_cache(T key, bool use_zone_maps,size_t &sz,int total_pages,int&begin,int&end,bool &found_it)
+    { for(size_t i=0; i<zonemaps.Size(); i++) {
+    	auto zm = zonemaps.Get(i);
+        if(zm->Intersects(key, key)) {
+          if(cache->exist(i)){//cout<<"exists"<<endl;
+            for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
+                    if(cache->get(i)[j-(i*_chunksize)] == key) {//cout<<"exists"<<endl;
+                        found_it = true;
+                        return j; 
+                        break;
+                    }
+                }
+    		}
+          else{cout<<"check "<<key<<endl;
+           	int num_pages=0;
+            if(compressed_chunks_sizes[i]%page_size==0)
+            num_pages=compressed_chunks_sizes[i]/page_size;
+            else 
+            num_pages=(compressed_chunks_sizes[i]/page_size)+1;         
+            begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i, 0);
+            end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+i+1, 0);
+            join(compressed_joined,begin,end-1,compressed_chunks_sizes[i],vec2,Splitted_Compressed_chunks_sizes);
+            sz=LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[i], chunks_sizes[i]*sizeof(int));
+	       	T* decompressed_chunk=(T*)decompressed_data;
+          	for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
+                    if(decompressed_chunk[j-(i*_chunksize)] == key) {
+                    	cache->put(i,decompressed_chunk);             
+                        found_it = true;
+                        return j; 
+                        break;
+                    }
+                }
+              }
+            }
+           
+            if (found_it || i==zonemaps.Size())
+            break;
          }
     }
+    
     
     //add a new function to find a query in the file vector without the zonemaps
     
@@ -699,10 +731,10 @@ class CompDec{
     return Splitted_Compressed_chunks_sizes[i];
     }
     //overload of the operator [] to access an elmt at a given index, decompress the concerned chunk and return it
-    const T& operator[](int index) 
+     const T& operator[](int index) 
 	{this->index=index; 
     if (index < 0 || index >= size) { 
-        cout << "Array index out of bound, exiting";
+        cout << "Array index out of bound, exiting...";
         exit(0); 
     }
     int chunk_number = (index ) / _chunksize ;
@@ -725,15 +757,22 @@ class CompDec{
 	}
 	
 	//Definition of the operator at() to access an elmt at a given index, decompress the concerned chunk and return it
-	const T& at(size_t const index){
+	inline const T& at(size_t const index){
         if (index < 0 || index >= size) {
-            throw out_of_range("file_vector::at(int)");
+            throw out_of_range("compression_class::at(int)");
         } 
     int chunk_number = (index ) / _chunksize ;  
     int begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number, 0);
     int end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+chunk_number+1, 0);
     join(compressed_joined,begin,end-1,compressed_chunks_sizes[chunk_number],vec2,Splitted_Compressed_chunks_sizes);
+    //auto start = std::chrono::high_resolution_clock::now(); 
     LZ4_decompress_safe(compressed_joined,decompressed_data, compressed_chunks_sizes[chunk_number], chunks_sizes[chunk_number]*sizeof(int));
+    /*auto stop = std::chrono::high_resolution_clock::now(); 
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    if(duration.count()>5) 
+    {std::cout << "Decompression took " <<duration.count() << " μs" << std::endl;
+    cout<<"chunk"<<chunk_number<<endl;
+    }*/
     T* decompressed_chunk=(T*)decompressed_data;
     return decompressed_chunk[index-(chunk_number*_chunksize)]; 
     }
@@ -767,11 +806,11 @@ void test()
      cout<<""<<*(decompressed_chunk+index+1)<<endl;
     }
     
-     operator vector<char*>() {
+     /*operator vector<char*>() {
         vector<char*> dst;
         dst.assign(vec2.begin(), vec2.end());
         return dst;
-    }
+    }*/
 };
 
 
@@ -789,7 +828,7 @@ int main()
     system("rm splitted");
     system("rm test_queries");
     srand(1234);
-    unsigned int n=10000000,_chunksize,page_size;
+    unsigned int n=20000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_queries", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
@@ -800,37 +839,46 @@ int main()
 		vector_test_queries.push_back(array[i]);
     }
     //Some keys to search for 
-    vector<int> queries = vector<int>({0, 31, 500, 6799,0, 55, 550, 38,9, 999, 500, 678,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 7538,0, 31, 500, 677,0, 31, 500, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 31, 5500, 538,0, 31, 421, 677,65, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 5500, 53});
-    CompDec<int,20000,8192>A(array,n);
-    vector<int>indexes=vector<int>({0, 100000,25,11,30,2,3,40000,12,15,20,16,10,25,24,110,111,101,211,132});
+    vector<int> queries = vector<int>({0, 31, 500, 7909,0, 55, 550, 38,9, 999, 50, 678,0, 31, 500, 638,0, 31, 500, 670,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 758,0, 31, 500, 6000,0, 31, 50, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 310, 555, 538,0, 31, 421, 677,600, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 55, 5300});
+    CompDec<int,10000,4096>A(array,n);    vector<int>indexes=vector<int>({0,100000,25000,11000,30000,2,3,40000,12,15,20,16,10,25,24,110,111,101,211,132,0,100000,25,11,30,2,3,40000,12,15,20,16,10,25,24,110,111,101,211,132,0, 100000,25,11,30,2,3,50000,12,15,20,16,10,25,24,110,111,101,211,132,0,100000,25,11,30,2,3,60000,12,15,20,16,10,25,24,110,111,101,211,132,0, 100000,25,11,30,2,3,70000,12,15,20,16,10,25,24,110,111,101,211,132,0,100000,25,11,30,2,3,70000,12,15,20,16,10,25,24,110,111,101,211,132,0, 100000,25,11,30,2,3,700000,12,150000,20,16,10,25,24,110000,111,101,211,132});
     int index;
     cout<<"give the index of the element you want to access ";
     cin>>index;
     cout<<"verify here "<<array[index]<<endl;
     //cout<<"array[20000] "<<array[20000]<<endl;cout<<"array[20001] "<<array[20001]<<endl;
-    //cout<<"array[20002] "<<array[20002]<<endl;cout<<"array[20003] "<<array[9999999]<<endl;
+    //cout<<"array[20002] "<<array[20002]<<endl;cout<<"array[20003] "<<array[20003]<<endl;
+    
+    //search with cache
     auto start = std::chrono::high_resolution_clock::now(); 
-    cout<<"element = "<<A[index]<<endl;
-    //A.test();
-    //cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;cout<<"++ "<<++A<<endl;
+    for(auto &index:indexes)
+    A[index];
     auto stop = std::chrono::high_resolution_clock::now(); 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "First search took " <<duration.count() << " μs" << std::endl;
-    //search with cache
+    std::cout << "avg search with cache took " <<(float)(duration.count())/indexes.size() << " μs" << std::endl;
+    //search with warm cache
     start = std::chrono::high_resolution_clock::now(); 
     for(auto &index:indexes)
     A[index];
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "search with cache took " <<duration.count() << " μs" << std::endl;
+    std::cout << "avg search with warm cache took " <<(float)(duration.count())/indexes.size() << " μs" << std::endl;
+    
     //search without cache
     start = std::chrono::high_resolution_clock::now(); 
     for(auto &index:indexes)
     A.at(index);
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "search without cache took " <<duration.count() << " μs" << std::endl;
-    cout<<"begin = "<<*A.begin()<<endl;
+    std::cout << "avg search without cache took " <<(float)(duration.count())/indexes.size() << " μs" << std::endl;
+    /**/
+    
+    start = std::chrono::high_resolution_clock::now(); 
+    for(auto &index:indexes)
+    vector_test_queries.at(index);
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "avg search without compression " <<(float)(duration.count())/indexes.size()<< " μs" << std::endl;
+    //cout<<"begin = "<<*A.begin()<<endl;
     cout<<"Number of chunks= "<<A.Get_num_chunks()<<endl;
     vector<size_t>splitted=A.Get_sizes();int nump=0;
 	/*for(auto i=splitted.begin();i!=splitted.end();i++)
@@ -857,7 +905,7 @@ int main()
     }
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[SCAN of real file vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
+    std::cout << "[avg SCAN of real file vector]\t\t Found " << found << " matches in " << (float)(duration.count())/queries.size() << " μs" << std::endl;
     /*SCAN of the compressed file_vector*/
     start = std::chrono::high_resolution_clock::now(); 
 	for(auto &query : queries)
@@ -867,7 +915,7 @@ int main()
     }
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[SCAN of the compressed file_vector]\t\t Found " << coun << " matches in " << duration.count() << " μs" << std::endl;
+    std::cout << "[SCAN of the compressed file_vector]\t\t Found " << coun << " matches in " << float(duration.count()/queries.size()) << " μs" << std::endl;
     
    
     //Find with Full scan of the real vector
@@ -885,8 +933,8 @@ int main()
     }
     stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[Full scan of the vector]\t\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
-    auto zonemaps =createzonemaps<int>(array,200000,n);
+    std::cout << "[avg Full scan of the vector]\t\t Found " << found << " matches in " << (float)duration.count()/queries.size() << " μs" << std::endl;
+    auto zonemaps =createzonemaps<int>(array,10000,n);
     //Find with Zonemaps with the real vector
     found = 0;
     start = std::chrono::high_resolution_clock::now(); 
@@ -910,14 +958,14 @@ int main()
     }
     stop = std::chrono::high_resolution_clock::now(); 
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[ZONEMAPS]\t Found " << found << " matches in " << duration.count() << " μs" << std::endl;
+    std::cout << "[avg ZONEMAPS]\t Found " << found << " matches in " << (float)duration.count()/queries.size() << " μs" << std::endl;
     bool found_it;found=0;
     /*ZoneMaps +Compressed File_vector*/
      start = std::chrono::high_resolution_clock::now();
     for(auto &query : queries)
     {found_it=false;
     size_t si;int a,b;
-    A.Find_with_file_vector(query,true,si,A.Get_total_pages_number(),a,b,found_it);
+    A.Find_with_file_vector_cache(query,true,si,A.Get_total_pages_number(),a,b,found_it);
 	if(found_it)
 	found++;
     //cout<<"begin= "<<a<<" end= "<<b<<endl;
@@ -925,9 +973,42 @@ int main()
     }
      stop = std::chrono::high_resolution_clock::now();
      duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "[ZoneMaps +Compressed File_vector]\t\t Found "<<found<<" matches in\t" << duration.count() << " μs" << std::endl;
+    std::cout << "[avg ZoneMaps +Compressed File_vector]\t\t Found "<<found<<" matches in\t" << (float)duration.count()/queries.size() << " μs" << std::endl;
+    
+    
+    found=0;
+    /*ZoneMaps +Compressed File_vector+warm cache*/
+     start = std::chrono::high_resolution_clock::now();
+    for(auto &query : queries)
+    {found_it=false;
+    size_t si;int a,b;
+    A.Find_with_file_vector_cache(query,true,si,A.Get_total_pages_number(),a,b,found_it);
+	if(found_it)
+	found++;
+    //cout<<"begin= "<<a<<" end= "<<b<<endl;
+    //cout<<"size "<<si<<endl;
+    }
+     stop = std::chrono::high_resolution_clock::now();
+     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[avg ZoneMaps +Compressed File_vector+warm cache]\t\t Found "<<found<<" matches in\t" << (float)duration.count()/queries.size() << " μs" << std::endl;
+    
+     found=0;
+    /*ZoneMaps +Compressed File_vector+warm cache*/
+     start = std::chrono::high_resolution_clock::now();
+    for(auto &query : queries)
+    {found_it=false;
+    size_t si;int a,b;
+    A.Find_with_file_vector_cache(query,true,si,A.Get_total_pages_number(),a,b,found_it);
+	if(found_it)
+	found++;
+    //cout<<"begin= "<<a<<" end= "<<b<<endl;
+    //cout<<"size "<<si<<endl;
+    }
+     stop = std::chrono::high_resolution_clock::now();
+     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[avg ZoneMaps +Compressed File_vector+warmer cache]\t\t Found "<<found<<" matches in\t" << (float)duration.count()/queries.size() << " μs" << std::endl;
     //A.print_ratio();
-    int test=0;
+    /*int test=0;
     /*
     cout<<"end "<<*A.end()<<endl;
     cout<<"verif "<<A[99999]<<endl;
