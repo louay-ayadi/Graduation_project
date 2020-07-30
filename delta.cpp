@@ -398,7 +398,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     	cout<<endl;
     }
     void print_number_ofpages(){
-    	cout<<"\nNumber_of_pages_foreach_chunk : ";
+    	cout<<"\nNumber_of_bytes_foreach_chunk : ";
     	for(auto x:number_of_pages_foreach_chunk)
     	cout<<x<<" ";
     }
@@ -415,7 +415,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     			num++;
     			if(num==subchunk_size or index>=compressed.size()){
     				splitted_file_vector->push_back(s);
-    				cout<<"num= "<<num<<" index = "<<index<<endl;
+    				//cout<<"num= "<<num<<" index = "<<index<<endl;
     				break;
     			}	
     		}
@@ -746,20 +746,20 @@ int main()
     system("rm delta_file");
     system("rm test_delta");
     srand(1234);
-    unsigned int n=100,_chunksize,page_size;
+    unsigned int n=10000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_delta", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
     {
-		array[i]=20*i;
+		array[i]=i;
 		vector_test_queries.push_back(array[i]);
-		cout<<array[i]<<" ";
+		//cout<<array[i]<<" ";
     }
     cout<<endl;
     
-    CompDec<int,50,5>A(array,n); 
+    CompDec<int,30000,2000>A(array,n); 
    // A.encode();   
     cout<<"encoded : "<<endl;
     /*for(int i=4;i<8;i++){
@@ -776,7 +776,7 @@ int main()
     A.delta_compress();
     A.print_number_ofpages();
     cout<<"\n size of compressed = "<<A.get_encoded_size()<<endl;
-    A.Get_delta_compressed();
+    //A.Get_delta_compressed();
     A.split_delta();
     return 0;
     }
