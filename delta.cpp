@@ -47,6 +47,8 @@ class CompDec{
     vector<unsigned char> compressed;
     vector<int*>		abs;
     vector<char*>	    sign;
+    vector<unsigned char> deltas;
+    vector<int>			after_shifting;
     int numberofbytes;
     public:
     
@@ -100,7 +102,7 @@ class CompDec{
     		delta_encode(_chunks[i],chunks_sizes[i]);
     		delta_encode(_chunks[i],chunks_sizes[i]);
     	}
-    	cout<<"encoded : "<<endl;    	
+    	//cout<<"encoded : "<<endl;    	
     }
     
     void copySetBits(unsigned &x, int y,
@@ -443,6 +445,280 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     
     void gt_dec(){for (int i=0;i<Num_chunks;i++)cout<<Decompressed_chunks_sizes[i]<<endl;}   
     
+    //copy setbits per byte for decompression
+    void copySetBits_Byte(long &x, unsigned char y,int l, int r){
+    // l and r must be between 1 to 8
+    if (l < 1 || r > 8)
+        return ;
+
+    // get the length of the mask
+    int maskLength = (1<<(r-l+1)) - 1;
+
+    // Shift the mask to the required position
+    // "&" with y to get the set bits at between
+    // l ad r in y
+    int mask = ((maskLength)<<(l-1)) & y ;
+    x = x | mask;
+	}
+	
+	//copy set_bits used with long numbers
+	void copySetBits(int &x, long y,
+                 const unsigned l,const unsigned r)
+	{
+    // l and r must be between 1 to 64
+    if (l < 1 || r > 64)
+        return ;
+
+    // get the length of the mask
+    long maskLength = (1<<(r-l+1)) - 1;
+
+    // Shift the mask to the required position
+    // "&" with y to get the set bits at between
+    // l ad r in y
+    long mask = ((maskLength)<<(l-1)) & y ;
+    x = x | mask;
+	}
+	
+	//Function to decode the prefix to know how many bits to read
+	void read_prefix(int&unused,int &i,vector<unsigned char>deltas,int&concerned_bits,long&reconstructed){
+    int index=0;
+    //unsigned reconstructed=0;
+    while(concerned_bits>0){
+        long j=0;
+        int l,r;
+        if(concerned_bits>=unused){
+            l=1;
+            r=unused;
+        }
+        else if(concerned_bits<unused){
+            l=unused+1-concerned_bits;
+            r=unused;
+           }
+        
+        copySetBits_Byte(j,deltas[i],l,r);
+        if(concerned_bits>=unused){
+            j=j<<(concerned_bits-unused);
+            unused-=unused;
+        }
+        else if(concerned_bits<unused){
+            j=j>>(unused-concerned_bits);
+            unused-=(concerned_bits);
+        }
+        reconstructed|=j;
+        concerned_bits-=(r-l+1);
+        if(unused==0){
+            i++;
+            unused=8;
+        }
+        index++;
+        if(concerned_bits==0){
+            //cout<<"ended copying "<<endl;
+            if(reconstructed<8){
+                //cout<<"concerned_bits = 1 "<<endl;
+                concerned_bits=1;
+                }
+            else if(reconstructed>=8 && reconstructed<12){
+                //cout<<"concerned_bits = 7"<<endl;
+                concerned_bits=9;
+            }
+            else if(reconstructed>=12 && reconstructed<14){
+                //cout<<"concerned_bits = 9"<<endl;
+                concerned_bits=12;
+            }
+            else if(reconstructed>=14 && reconstructed<15){
+                //cout<<"concerned_bits = 12"<<endl;
+                concerned_bits=16;
+            }
+            else if(reconstructed==15){
+                //cout<<"concerned_bits = 32"<<endl;
+                concerned_bits=36;
+            }
+            //cout<<"reconstructed = "<<reconstructed<<" "<<endl;
+            //decompressed.push_back(reconstructed);
+            break;
+        }
+        else if(concerned_bits!=0 &&i==deltas.size()){
+            //decompressed.push_back(reconstructed);
+            //cout<<"end of vector"<<endl;
+            break;
+        }
+    }
+}
+	//fonction to decompress numbers
+	void dec(int&unused,int &i,vector<unsigned char>deltas,int &concerned_bits,long&reconstructed){
+    int index=0;
+    //unsigned reconstructed=0;
+    while(concerned_bits>0){
+        long j=0;
+        int l,r;
+        if(concerned_bits>=unused){
+            l=1;
+            r=unused;
+        }
+        else if(concerned_bits<unused){
+            l=unused+1-concerned_bits;
+            r=unused;
+           }
+        
+        copySetBits_Byte(j,deltas[i],l,r);
+        if(concerned_bits>=unused){
+            j=j<<(concerned_bits-unused);
+            unused-=unused;
+        }
+        else if(concerned_bits<unused){
+            j=j>>(unused-concerned_bits);
+            unused-=(concerned_bits);
+        }
+        reconstructed|=j;
+        concerned_bits-=(r-l+1);
+        if(unused==0){
+            i++;
+            unused=8;
+        }
+        index++;
+        if(concerned_bits==0){
+            //cout<<"ended copying "<<endl;
+            //cout<<"reconstructed = "<<reconstructed<<" "<<endl;
+            //decompressed.push_back(reconstructed);
+            break;
+        }
+        else if(concerned_bits!=0 &&i==deltas.size()){
+            //decompressed.push_back(reconstructed);
+            //cout<<"end of vector"<<endl;
+            break;
+        }
+    }
+}
+
+	
+	
+    //Decompress chunk i
+    void decompress(int num_chunk){
+    	if(num_chunk<0 or num_chunk>Num_chunks){
+    		cout<<"Invalid chunk number"<<endl;
+    		return;
+    	}
+    	int begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk, 0);
+        int end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk+1, 0);
+        cout<<"begin = "<<begin<<" end = "<<end<<endl;
+        int number_of_prec=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk, 0);
+        /*for(int index=0;index<5;index++){
+        	deltas.push_back(splitted_file_vector->at(0).chunk[index]);
+        	
+        }/*
+        for(int index=0;index<1751;index++){
+        	deltas.push_back(splitted_file_vector->at(1).chunk[index]);	
+        }*/
+        int count=0;
+        int number_of_bytes_to_read=end-begin;
+        int num_p=begin/subchunk_size,start=begin%subchunk_size;
+        while(count<number_of_bytes_to_read){
+        	deltas.push_back(splitted_file_vector->at(num_p).chunk[start]);
+        	start++;
+        	count++;
+        	if(start==2000)
+        	num_p++;	
+        }
+        cout<<"joined and the number is : "<<number_of_bytes_to_read<<endl;
+        int i=0;
+    	int unused=8;
+    	int tmp_index=0;
+    	int tmp_unused;
+    	int tmp_concerned_bits=0;
+    	int number_of_decompressed=0;
+    	while(i!=number_of_bytes_to_read && number_of_decompressed<chunks_sizes[num_chunk])
+    	{
+        int concerned_bits=4;
+        long reconstructed=0;
+        tmp_unused=unused;
+        tmp_index=i;
+        //cout<<" i = "<<i<<" unused = "<<unused<<endl;
+        read_prefix(tmp_unused,tmp_index,deltas,concerned_bits,reconstructed);
+        reconstructed=0;
+        tmp_concerned_bits=concerned_bits;
+        dec(unused,i,deltas,concerned_bits,reconstructed);
+        //cout<<"concerned_bits after dec = "<<tmp_concerned_bits<<endl;
+        if(tmp_concerned_bits==1){
+            after_shifting.push_back(reconstructed);
+        }
+        else if(tmp_concerned_bits==9){
+            int data=0;
+            if(reconstructed>320){
+                copySetBits(data,reconstructed,1,6);
+                after_shifting.push_back(-data);
+            }
+            else{
+            copySetBits(data,reconstructed,1,7);
+            after_shifting.push_back(data);
+            }
+        }
+        else if(tmp_concerned_bits==12){
+            int data=0;
+            if(reconstructed>3328){
+                copySetBits(data,reconstructed,1,8);
+                after_shifting.push_back(-data);
+            }
+            else{
+                copySetBits(data,reconstructed,1,9);
+                after_shifting.push_back(data);
+            }
+        }
+         else if(tmp_concerned_bits==16){
+            int data=0;
+            if(reconstructed>59392){
+                copySetBits(data,reconstructed,1,11);
+                after_shifting.push_back(-data);
+            }
+            else{
+                copySetBits(data,reconstructed,1,12);
+                after_shifting.push_back(data);
+            }
+        }
+        else{
+            int data=0;
+            if(reconstructed>66571993088){
+                //2147483647
+                long maskLength = 2147483647;
+                //cout<<"maskLength = "<<maskLength<<endl;
+                // Shift the mask to the required position
+                // "&" with y to get the set bits at between
+                // l ad r in y
+                long mask = (maskLength) & reconstructed ;
+                data=data|mask;
+                
+                //cout<<"data1 = "<<reconstructed<<endl;
+                //copySetBits(data,reconstructed,1,32);
+                //cout<<"data2 = "<<data<<endl;
+                after_shifting.push_back(-data);
+            }
+            else{
+                long maskLength = 4294967295;
+                //cout<<"maskLength = "<<maskLength<<endl;
+                // Shift the mask to the required position
+                // "&" with y to get the set bits at between
+                // l ad r in y
+                long mask = (maskLength) & reconstructed ;
+                data=data|mask;
+                
+                //cout<<"data1 = "<<reconstructed<<endl;
+                //copySetBits(data,reconstructed,1,32);
+                //cout<<"data2 = "<<data<<endl;
+               
+                after_shifting.push_back(data);
+            	}
+        	}
+        number_of_decompressed++;
+        tmp_concerned_bits=concerned_bits;
+    	}
+    	for(int k=0;k<15;k++)
+    	cout<<after_shifting[k]<<" ";
+        cout<<endl;
+        cout<<"number of decompressed = "<<number_of_decompressed<<" i = "<<i<<endl; ;
+    }
+    int get_number(int i){
+    	return after_shifting.size();
+    }
+    
     //Destructor
     ~CompDec()
     {     /*      
@@ -746,22 +1022,22 @@ int main()
     system("rm delta_file");
     system("rm test_delta");
     srand(1234);
-    unsigned int n=10000000,_chunksize,page_size;
+    unsigned int n=100000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_delta", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++)
     {
-		array[i]=i;
+		array[i]=1;
 		vector_test_queries.push_back(array[i]);
 		//cout<<array[i]<<" ";
     }
     cout<<endl;
     
-    CompDec<int,30000,2000>A(array,n); 
+    CompDec<int,300,20>A(array,n); 
    // A.encode();   
-    cout<<"encoded : "<<endl;
+    //cout<<"encoded : "<<endl;
     /*for(int i=4;i<8;i++){
     	for(int j=0;j<5;j++)
     		cout<<abs(A.get_encoded()[i][j])<<" ";
@@ -778,6 +1054,8 @@ int main()
     cout<<"\n size of compressed = "<<A.get_encoded_size()<<endl;
     //A.Get_delta_compressed();
     A.split_delta();
+    A.decompress(1);
+    cout<<"last number to check "<<A.get_number(29999)<<endl;
     return 0;
     }
 
