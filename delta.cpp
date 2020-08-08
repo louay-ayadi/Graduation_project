@@ -40,7 +40,7 @@ class CompDec{
     size_t 				 max_compressed_size;
 	vector<int> 		 number_of_pages_foreach_chunk;//Vector containing number of pages foreach compressed chunk
     //LRUCache<int,T*>	*cache;//LRU Cache for decompressed chunks
-    shared_ptr<LRUCache<int,T*>> cache;
+    //shared_ptr<LRUCache<int,T*>> cache;
     int 				index;//Index of element to look for	
     vector<int*>		delta_enc;//vector containing the result of delta_delta encoding	
     int* 				delta;
@@ -50,16 +50,18 @@ class CompDec{
     vector<unsigned char> deltas;
     vector<int>			after_shifting;
     int numberofbytes;
+    shared_ptr<LRUCache<T,vector<T>>> cache;
     public:
     
     //Constructor
     CompDec(T* ch, size_t ssize)
     {  
     	numberofbytes=0;
+    	
     	this->delta=new int[C*sizeof(int)];
     	this->index=0;
     	//this->cache=new LRUCache<int,T*>(100);
-    	this->cache=std::make_shared<LRUCache<int,T*>>(100);
+    	this->cache=std::make_shared<LRUCache<T,vector<T>>>(100);
     	
     	this->splitted_file_vector=std::make_shared<file_vector<subchunk<subchunk_size>>>("delta_file",true);
     	size=ssize;
@@ -88,7 +90,7 @@ class CompDec{
     	}
 	}
 	//template <typename Type>
-	void delta_decode(T *buffer, int length){
+	void delta_decode(vector<T>&buffer, int length){
     	T last = 0;
     	for (int i = 0; i < length; i++){
         	T delta = buffer[i];
@@ -105,6 +107,13 @@ class CompDec{
     	//cout<<"encoded : "<<endl;    	
     }
     
+    void decode(vector<T>&_chunk,int length){
+    	
+    		delta_decode(_chunk,length);
+    		delta_decode(_chunk,length);
+    	
+    	//cout<<"decoded : "<<endl;    	
+    }
     void copySetBits(unsigned &x, int y,
                  unsigned l, unsigned r)
 {
@@ -600,7 +609,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     	}
     	int begin=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk, 0);
         int end=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk+1, 0);
-        cout<<"begin = "<<begin<<" end = "<<end<<endl;
+        //cout<<"begin = "<<begin<<" end = "<<end<<endl;
         int number_of_prec=accumulate(number_of_pages_foreach_chunk.begin(), number_of_pages_foreach_chunk.begin()+num_chunk, 0);
         /*for(int index=0;index<5;index++){
         	deltas.push_back(splitted_file_vector->at(0).chunk[index]);
@@ -612,14 +621,20 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
         int count=0;
         int number_of_bytes_to_read=end-begin;
         int num_p=begin/subchunk_size,start=begin%subchunk_size;
+        //cout<<"start= "<<start<<endl;
         while(count<number_of_bytes_to_read){
         	deltas.push_back(splitted_file_vector->at(num_p).chunk[start]);
+        	//cout<<"num_p ="<<num_p<<endl;
+        	
         	start++;
         	count++;
-        	if(start==2000)
-        	num_p++;	
+        	if(start==subchunk_size)
+        	{num_p++;
+        	start=0;
+        	}	
+        	//cout<<"count ="<<count<<endl;
         }
-        cout<<"joined and the number is : "<<number_of_bytes_to_read<<endl;
+        //cout<<"joined and the number is : "<<number_of_bytes_to_read<<endl;
         int i=0;
     	int unused=8;
     	int tmp_index=0;
@@ -710,10 +725,14 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
         number_of_decompressed++;
         tmp_concerned_bits=concerned_bits;
     	}
-    	for(int k=0;k<15;k++)
+    	/*for(int k=0;k<15;k++)
     	cout<<after_shifting[k]<<" ";
-        cout<<endl;
-        cout<<"number of decompressed = "<<number_of_decompressed<<" i = "<<i<<endl; ;
+        cout<<endl;*/
+        //cout<<"number of decompressed = "<<number_of_decompressed<<" i = "<<i<<endl; 
+        decode(this->after_shifting,chunks_sizes[num_chunk]);
+        /*for(int k=0;k<15;k++)
+    	cout<<after_shifting[k]<<" ";*/
+        //cout<<endl;
     }
     int get_number(int i){
     	return after_shifting.size();
@@ -721,7 +740,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     
     //Destructor
     ~CompDec()
-    {     /*      
+    {     
      chunks.clear();
      Compressed_chunks.clear();
      DeCompressed_chunks.clear();
@@ -731,11 +750,64 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
      chunks_sizes.clear();
      Splitted_Compressed_chunks.clear();
      number_of_pages_foreach_chunk.clear();
-     delete[] decompressed_data;
+     /*delete[] decompressed_data;
      delete[] compressed_joined;*/
      //delete cache;
+     compressed.clear();
+     abs.clear();;
+     sign.clear();;
+     deltas.clear();
+     after_shifting.clear();
     }
-    
+    //Find a value using zonemaps
+    size_t Find_with_zonemaps(T key,bool &found_it){
+     for(size_t i=0; i<zonemaps.Size(); i++) {
+    	auto zm = zonemaps.Get(i);
+        if(zm->Intersects(key, key)) {
+        	//
+        	if(cache->exist(i)){
+            for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
+                    if(cache->get(i)[j-(i*_chunksize)] == key) {//cout<<cache->get(i)[j-(i*_chunksize)]<<" "<<j<<" "<<i<<"start "<<zm->start_loc<<" zm->end_loc"<<zm->end_loc<<endl;
+                   //cout<<"key= "<<key<<" index= "<<j<<endl;
+                   //cache->display();
+                        found_it = true;
+                        return j; 
+                        break;
+                    }
+                 }
+    		}
+        	//
+        	else{
+          	decompress(i);
+            for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
+                    if(after_shifting[j-(i*_chunksize)] == key) {//cout<<"intersect and key= "<<key <<" "<<i<<" "<<j<<endl;
+                        cache->put(i,after_shifting);
+                        found_it = true;
+                        after_shifting.clear();
+            			deltas.clear();
+                        return j; 
+                        break;
+                    }
+                }
+            }
+            }
+            if (found_it){
+            after_shifting.clear();
+            deltas.clear();
+            break;
+            }
+            
+         }
+         after_shifting.clear();
+         deltas.clear();
+    }
+    void erase_decompressed(){
+    if(after_shifting.size()!=0){
+    after_shifting.clear();
+    deltas.clear();
+    }
+    else return;
+    }
     //Function to Split the Array to little chunks depending on given _chunksize
     vector<T*> Split_Array(const T* Tab,size_t n, int _chunksize)
     {
@@ -1022,20 +1094,22 @@ int main()
     system("rm delta_file");
     system("rm test_delta");
     srand(1234);
-    unsigned int n=100000,_chunksize,page_size;
+    unsigned int n=100000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_delta", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
-	for(size_t i=0;i<n;i++)
-    {
-		array[i]=1;
+	for(size_t i=0;i<n;i++){
+		array[i]=i;
 		vector_test_queries.push_back(array[i]);
-		//cout<<array[i]<<" ";
     }
     cout<<endl;
-    
-    CompDec<int,300,20>A(array,n); 
+    vector<int> queries = vector<int>({0, 31, 500, 500,0, 55, 550, 38,9, 9, 50, 678,0, 31, 500, 638,0, 31, 500, 670,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 758,0, 31, 500, 6000,0, 31, 50, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 310, 555, 538,0, 31, 421, 677,600, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 55, 5300});
+    cout<<"size of queries = "<<queries.size()<<endl;
+    for(int i=0;i<15;i++)
+    cout<<vector_test_queries.at(i)<<" ";
+    cout<<endl;
+    CompDec<int,8000,1100>A(array,n); 
    // A.encode();   
     //cout<<"encoded : "<<endl;
     /*for(int i=4;i<8;i++){
@@ -1054,8 +1128,26 @@ int main()
     cout<<"\n size of compressed = "<<A.get_encoded_size()<<endl;
     //A.Get_delta_compressed();
     A.split_delta();
-    A.decompress(1);
+    /*A.decompress(0);
+    A.erase_decompressed();
+    A.decompress(1);*/
     cout<<"last number to check "<<A.get_number(29999)<<endl;
+    /*ZoneMaps +Compressed File_vector+Delta delta_RLE encoding*/
+    int found=0;
+    auto start = std::chrono::high_resolution_clock::now(); 
+  	bool found_it =0;
+    for(auto query : queries){
+    	found_it =0;
+    	A.Find_with_zonemaps(query,found_it);
+    	if(found_it)
+    	found++;
+    }
+    //A.decompress(0);
+    auto stop = std::chrono::high_resolution_clock::now(); 
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "avg search with cache took " <<(float)(duration.count()/queries.size()) << " μs" << std::endl;
+    A.erase_decompressed();
+    cout<<"found = "<<found<<endl;
     return 0;
     }
 
