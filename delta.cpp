@@ -76,6 +76,11 @@ class CompDec{
         this->zonemaps=zonemapss;
         zonemaps.InitFromData(ch, ssize);
         encode(this->chunks);
+        delta_compress();
+    	//A.print_number_ofpages();
+    	cout<<"\n size of compressed = "<<get_encoded_size()<<endl;
+    	//A.Get_delta_compressed();
+    	split_delta();
         
         
     }
@@ -374,6 +379,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
 
 
 } 
+	//Final compression function that uses Read_prefix and compress to compress all the chunks
 	void delta_compress(){
 		for(int j=0;j<Num_chunks;j++){
 			int unused=8;
@@ -408,11 +414,15 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     	cout<<(int)x<<" ";
     	cout<<endl;
     }
+    
+    //Function that allows us to have the number of bytes foreach chunk after compression
     void print_number_ofpages(){
     	cout<<"\nNumber_of_bytes_foreach_chunk : ";
     	for(auto x:number_of_pages_foreach_chunk)
     	cout<<x<<" ";
     }
+    
+    //Split compressed chunks into pages and map them to a file in memory
     void split_delta(){
     	int Num_pages = (this->compressed.size() - 1) / subchunk_size + 1;
      	int index=0;
@@ -434,6 +444,8 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     	
 		cout<<"numpages = "<<Num_pages<<endl;
     }
+    
+    //Function to reverse delta calculation and get the original data
     void delta_decode(T*tab,size_t length){
     	for(int i=1;i<length;i++){
     		tab[i]=tab[i]+tab[i-1];
@@ -488,7 +500,7 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
     x = x | mask;
 	}
 	
-	//Function to decode the prefix to know how many bits to read
+	//Function to decode the prefix to know how many bits to read when decompressing
 	void read_prefix(int&unused,int &i,vector<unsigned char>deltas,int&concerned_bits,long&reconstructed){
     int index=0;
     //unsigned reconstructed=0;
@@ -801,6 +813,39 @@ void Add_Prefix(int data,vector<unsigned char>& compressed,int&unused,unsigned c
          after_shifting.clear();
          deltas.clear();
     }
+	inline const T& at(size_t const index){
+        if (index < 0 || index >= size) {
+            throw out_of_range("compression_class::at(index)");
+        } 
+    	int chunk_number = (index ) / _chunksize ; 
+    	if(cache->exist(chunk_number)){ 
+    		return cache->get(chunk_number)[index-(chunk_number*_chunksize)];
+    	}
+    	else{
+    		decompress(chunk_number);
+    		cache->put(chunk_number,after_shifting);
+    		after_shifting.clear();
+         	deltas.clear();
+    		return after_shifting[index-(chunk_number*_chunksize)];
+    	}
+    }
+	const T& operator[](int index){
+        if (index < 0 || index >= size) {
+            throw out_of_range("compression_class::at(index)");
+        } 
+    	int chunk_number = (index ) / _chunksize ; 
+    	if(cache->exist(chunk_number)){ 
+    		return cache->get(chunk_number)[index-(chunk_number*_chunksize)];
+    	}
+    	else{
+    		decompress(chunk_number);
+    		cache->put(chunk_number,after_shifting);
+    		after_shifting.clear();
+         	deltas.clear();
+    		return after_shifting[index-(chunk_number*_chunksize)];
+    	}
+    }
+    
     void erase_decompressed(){
     if(after_shifting.size()!=0){
     after_shifting.clear();
@@ -1094,44 +1139,29 @@ int main()
     system("rm delta_file");
     system("rm test_delta");
     srand(1234);
-    unsigned int n=100000000,_chunksize,page_size;
+    unsigned int n=20000000,_chunksize,page_size;
     cout<<"Size of array "<<n<<endl;
     file_vector<int> vector_test_queries("test_delta", file_vector<int>::create_file);
     int * array=new int[n];//First declaration of array of test
  	//Fill the array
 	for(size_t i=0;i<n;i++){
-		array[i]=i;
+		array[i]=i+20;
 		vector_test_queries.push_back(array[i]);
     }
     cout<<endl;
-    vector<int> queries = vector<int>({0, 31, 500, 500,0, 55, 550, 38,9, 9, 50, 678,0, 31, 500, 638,0, 31, 500, 670,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 758,0, 31, 500, 6000,0, 31, 50, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 310, 555, 538,0, 31, 421, 677,600, 311, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638,0, 31, 55, 5300});
+    vector<int> queries = vector<int>({0, 31, 500, 500,0, 55, 550, 38,9, 9, 50, 678,0, 31, 500, 638,0, 31, 500, 670,0, 31, 500, 675,0, 31, 500, 677,0, 31, 500, 538,0, 31, 500, 758,0, 31, 500, 6000,0, 31, 50, 678,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 538,0, 31, 500, 638,0, 31, 500, 678,0, 31, 500, 738,0, 310, 555, 538,0, 31, 421, 677, 525, 538,0, 31, 500, 678,789, 310, 700, 538,0, 31, 500, 638, 5300,52,54,800,9000,1000});
+    vector<int>indexes=vector<int>({3783699,98680,248273,248273,3783699,1474053,1071008,266660,541594,541594,4253954,1499462,3783699,98680,248273,45032,3783699,98680,211,132,0,100000,25,11,30,2,3,40000,12,15,20,16,10,25,24,110,111,101,211,132,0, 100000,25,11,30,2,3,50000,12,24,110,111,101,211,132,0,100000,25,11,30,2,3,60000,12,15,20,16,10,25,24,110,111,101,211,132,0, 100000,25,12,0,100000,25,11,30,2,3,70000,12,15,20,16,10,25,24,110,111,101,211,132,0});
     cout<<"size of queries = "<<queries.size()<<endl;
-    for(int i=0;i<15;i++)
+    cout<<"size of indexes = "<<indexes.size()<<endl;
+    /*for(int i=0;i<15;i++)
     cout<<vector_test_queries.at(i)<<" ";
-    cout<<endl;
-    CompDec<int,8000,1100>A(array,n); 
-   // A.encode();   
-    //cout<<"encoded : "<<endl;
-    /*for(int i=4;i<8;i++){
-    	for(int j=0;j<5;j++)
-    		cout<<abs(A.get_encoded()[i][j])<<" ";
-    	}
-    int x=-8;
-    cout<<abs(x);*/
-    /*
-    for(int i=0;i<4;i++){
-    	for(int j=0;j<5;j++)
-    	cout<<A.Get_Chunks()[i][j]<<" ";
-    }*/
-    A.delta_compress();
-    A.print_number_ofpages();
-    cout<<"\n size of compressed = "<<A.get_encoded_size()<<endl;
-    //A.Get_delta_compressed();
-    A.split_delta();
+    cout<<endl;*/
+    CompDec<int,2000,1500>A(array,n); 
+   
     /*A.decompress(0);
     A.erase_decompressed();
     A.decompress(1);*/
-    cout<<"last number to check "<<A.get_number(29999)<<endl;
+    //cout<<"last number to check "<<A.get_number(29999)<<endl;
     /*ZoneMaps +Compressed File_vector+Delta delta_RLE encoding*/
     int found=0;
     auto start = std::chrono::high_resolution_clock::now(); 
@@ -1145,9 +1175,55 @@ int main()
     //A.decompress(0);
     auto stop = std::chrono::high_resolution_clock::now(); 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-    std::cout << "avg search with cache took " <<(float)(duration.count()/queries.size()) << " μs" << std::endl;
-    A.erase_decompressed();
-    cout<<"found = "<<found<<endl;
+    std::cout << "[avg search with Zonemaps + cache took]\t "<<"found = "<<found<<" matches in "<<(float)(duration.count()/queries.size()) << " μs" << std::endl;
+    
+    /*A.erase_decompressed();
+    cout<<"found = "<<found<<endl;*/
+    
+    //Search with indexes
+    start = std::chrono::high_resolution_clock::now(); 
+    for(auto &index:indexes)
+    A.at(index);
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[avg search with index + warm cache took]\t " <<(float)duration.count()/indexes.size()<< " μs" << std::endl;
+    
+    //warm cache
+    start = std::chrono::high_resolution_clock::now(); 
+    for(auto &index:indexes)
+    A.at(index);
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[avg search with index + warm cache took]\t " <<(float)duration.count()/indexes.size()<< " μs" << std::endl;
+    
+    //Create Zonemaps
+    auto zonemaps =createzonemaps<int>(array,2000,n);
+    //Find with Zonemaps on the real vector
+    found = 0;
+    start = std::chrono::high_resolution_clock::now(); 
+    
+    for(auto &query : queries) {
+        bool found_it = false;
+        for(size_t i=0; i<zonemaps.Size(); i++) {
+            auto zm = zonemaps.Get(i);
+            if(zm->Intersects(query, query)) {
+                for(size_t j=zm->start_loc; j<zm->end_loc; j++) {
+                    if(vector_test_queries.at(j) == query) {
+                        found++;
+                        found_it = true;
+                        break;
+                    }
+                }
+            }
+            if(found_it)
+                break;
+        }
+    }
+    stop = std::chrono::high_resolution_clock::now(); 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+    std::cout << "[avg ZONEMAPS]\t Found " << found << " matches in " << (float)duration.count()/queries.size() << " μs" << std::endl;
+    
+    
     return 0;
     }
 
